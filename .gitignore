@@ -1,0 +1,40 @@
+# Build artifacts
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bld/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Rider / JetBrains
+.idea/
+
+# NuGet
+*.nupkg
+packages/
+.nuget/
+
+# Logs / temp
+*.log
+*.tmp
+*.bak
+
+# OS
+desktop.ini
+Thumbs.db
+.DS_Store
+
+# App runtime data (DPAPI profiles & settings live in %AppData%, never commit)
+profiles.json
+settings.json
+credentials.json

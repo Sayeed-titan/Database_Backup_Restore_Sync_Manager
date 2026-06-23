@@ -1,0 +1,86 @@
+<Window x:Class="PgBackupManager.UI.Views.ProfileEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Edit profile"
+        Width="480" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" FontFamily="{StaticResource FontUI}"
+        TextOptions.TextFormattingMode="Ideal">
+
+    <Border Background="White" CornerRadius="18" Padding="24" Margin="16">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="40" ShadowDepth="6" Opacity="0.28" Color="#FF0F2340" />
+        </Border.Effect>
+        <StackPanel>
+            <!-- header -->
+            <Grid x:Name="HeaderBar" MouseLeftButtonDown="HeaderBar_MouseLeftButtonDown" Background="Transparent" Margin="0,0,0,18">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock x:Name="TitleText" Text="Add Connection Profile" FontSize="17" FontWeight="Bold" Foreground="{StaticResource Navy}" />
+                    <TextBlock Text="Password is encrypted with Windows DPAPI on save." FontSize="11" Foreground="{StaticResource Muted}" Margin="0,2,0,0" />
+                </StackPanel>
+                <Button Grid.Column="1" Style="{StaticResource GhostButton}" Click="CancelBtn_Click" Width="32" Height="32" Padding="0">
+                    <Path Width="14" Height="14" Stretch="Uniform" Stroke="{StaticResource Secondary}" StrokeThickness="2" StrokeStartLineCap="Round" Data="M6 6 L18 18 M18 6 L6 18" />
+                </Button>
+            </Grid>
+
+            <!-- form -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,12">
+                    <TextBlock Text="PROFILE NAME" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputBox}" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,6,12">
+                    <TextBlock Text="HOST" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputBox}" Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="6,0,0,12">
+                    <TextBlock Text="PORT" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputBox}" Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,6,12">
+                    <TextBlock Text="DATABASE" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputBox}" Text="{Binding Database, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+                <StackPanel Grid.Row="2" Grid.Column="1" Margin="6,0,0,12">
+                    <TextBlock Text="USER" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputBox}" Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,6,0">
+                    <TextBlock Text="PASSWORD" Style="{StaticResource FieldLabel}" />
+                    <Border BorderBrush="{StaticResource BorderSoft}" BorderThickness="1.5" CornerRadius="8" Background="White">
+                        <PasswordBox x:Name="PasswordInput" BorderThickness="0" Padding="11,8" FontSize="12.5" Background="Transparent" />
+                    </Border>
+                </StackPanel>
+                <StackPanel Grid.Row="3" Grid.Column="1" Margin="6,0,0,0">
+                    <TextBlock Text="DEFAULT SCHEMA" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputBox}" Text="{Binding DefaultSchema, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+            </Grid>
+
+            <!-- actions -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                <Button Style="{StaticResource GhostButton}" Click="CancelBtn_Click" Content="Cancel" Padding="18,9" Margin="0,0,8,0" />
+                <Button Style="{StaticResource PrimaryButton}" Click="SaveBtn_Click" Content="Save Profile" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

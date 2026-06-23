@@ -1,0 +1,124 @@
+<UserControl x:Class="PgBackupManager.UI.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:PgBackupManager.UI.ViewModels">
+    <UserControl.DataContext>
+        <vm:SettingsViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="{StaticResource AppBg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,22,24,8">
+            <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+                <TextBlock Text="Settings" Style="{StaticResource H1}" Margin="0,0,0,16" />
+
+                <!-- PG tools -->
+                <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="PostgreSQL Client Tools" Style="{StaticResource CardTitle}" Margin="0,0,0,3" />
+                        <TextBlock Text="Override the auto-detected bin folder (only set this if you have multiple PG installs)." Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,14" TextWrapping="Wrap" />
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="BIN FOLDER OVERRIDE" Style="{StaticResource FieldLabel}" Margin="0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <TextBox Grid.Column="1" Style="{StaticResource InputBox}" FontFamily="{StaticResource FontMono}" Text="{Binding PgBinDirOverride, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Grid.Column="2" Style="{StaticResource GhostButton}" Command="{Binding BrowsePgBinCommand}" Content="BROWSE" Margin="8,0,0,0" />
+                        </Grid>
+                        <Border Background="{StaticResource CardSubtle}" BorderBrush="{StaticResource BorderLight}" BorderThickness="1" CornerRadius="8" Padding="14,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Detected version" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,3" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DetectedPgVersion}" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource StatusGreen}" Margin="0,3" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="pg_dump.exe" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,3" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetectedPgDump}" FontSize="11.5" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Body}" Margin="0,3" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="pg_restore.exe" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,3" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DetectedPgRestore}" FontSize="11.5" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Body}" Margin="0,3" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="psql.exe" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,3" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DetectedPsql}" FontSize="11.5" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Body}" Margin="0,3" TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Default folders -->
+                <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Default Folders" Style="{StaticResource CardTitle}" Margin="0,0,0,14" />
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="DEFAULT BACKUP ROOT" Style="{StaticResource FieldLabel}" Margin="0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <TextBox Grid.Column="1" Style="{StaticResource InputBox}" FontFamily="{StaticResource FontMono}" Text="{Binding DefaultBackupRoot, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Grid.Column="2" Style="{StaticResource GhostButton}" Command="{Binding BrowseBackupRootCommand}" Content="BROWSE" Margin="8,0,0,0" />
+                        </Grid>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="DEFAULT RESTORE SOURCE" Style="{StaticResource FieldLabel}" Margin="0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <TextBox Grid.Column="1" Style="{StaticResource InputBox}" FontFamily="{StaticResource FontMono}" Text="{Binding DefaultRestoreSource, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Grid.Column="2" Style="{StaticResource GhostButton}" Command="{Binding BrowseRestoreSourceCommand}" Content="BROWSE" Margin="8,0,0,0" />
+                        </Grid>
+                        <CheckBox Style="{StaticResource DesignCheck}" Content="Use auto Y/M/D folder structure under backup root" IsChecked="{Binding UseAutoFolders}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Retention -->
+                <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Retention Policy" Style="{StaticResource CardTitle}" Margin="0,0,0,14" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <TextBlock Text="Delete backups older than" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding RetentionDays, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="days" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Margin="0,0,0,12">
+                            <Run Text="Files eligible for deletion right now: " Foreground="#FF64748B" FontSize="12" />
+                            <Run Text="{Binding RetentionPreviewCount}" FontWeight="Bold" Foreground="#FF0F2340" FontSize="12" />
+                        </TextBlock>
+                        <Button Style="{StaticResource PillButton}" Command="{Binding RunRetentionCleanupCommand}" Content="RUN CLEANUP NOW" HorizontalAlignment="Left" Padding="14,8" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock FontSize="11" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Muted}">
+                    <Run Text="Settings file: " /><Run Text="{Binding SettingsFilePath}" />
+                </TextBlock>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource PrimaryButton}" Command="{Binding SaveCommand}" Padding="26,10">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Width="14" Height="14" Stretch="Uniform" Stroke="White" StrokeThickness="2" StrokeLineJoin="Round" Margin="0,0,8,0"
+                              Data="M19 21 H5 a2 2 0 0 1 -2 -2 V5 a2 2 0 0 1 2 -2 h11 l5 5 v11 a2 2 0 0 1 -2 2 Z M17 21 V13 H7 V21 M7 3 V8 H15" />
+                        <TextBlock Text="Save Settings" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource Teal}" FontSize="12" VerticalAlignment="Center" Margin="16,0,0,0" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,454 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
+using PgBackupManager.Core.Models;
+using PgBackupManager.Core.Services;
+
+namespace PgBackupManager.UI.ViewModels;
+
+public partial class SchemaNode : ObservableObject
+{
+    public string Name { get; init; } = "";
+    // Objects are organised into folders (Tables, Views, Functions, Sequences, Types).
+    public ObservableCollection<ObjectGroup> Groups { get; } = new();
+    [ObservableProperty] private bool _isChecked;
+    [ObservableProperty] private bool _isExpanded;
+    public bool HasObjects => Groups.Any(g => g.AllCount > 0);
+    public int TableCount { get; set; }
+    public int FunctionCount { get; set; }
+    public int ViewCount { get; set; }
+    public int TypeCount { get; set; }
+    public int SequenceCount { get; set; }
+    public string Summary => $"{TableCount} tables · {FunctionCount} fns · {ViewCount} views · {TypeCount} types · {SequenceCount} seqs";
+
+    public void RefreshSummary() { OnPropertyChanged(nameof(Summary)); OnPropertyChanged(nameof(HasObjects)); }
+
+    // True while a schema-level tick is cascading down to its tables, so the
+    // view-model can tell a cascade apart from a manual single-table click.
+    public bool Cascading { get; private set; }
+
+    // Ticking the schema selects its tables (the only object kind pg_dump can
+    // target individually); functions/views/types/sequences ride along with the
+    // schema automatically when the schema is dumped.
+    partial void OnIsCheckedChanged(bool value)
+    {
+        Cascading = true;
+        foreach (var g in Groups)
+            if (g.IsTableGroup)
+                foreach (var o in g.AllObjects) o.IsChecked = value;
+        Cascading = false;
+    }
+}
+
+public partial class ObjectGroup : ObservableObject
+{
+    public string Title { get; init; } = "";       // "Tables", "Functions", …
+    public DbObjectKind Kind { get; init; }
+    public bool IsTableGroup => Kind == DbObjectKind.Table;
+    public List<ObjectNode> AllObjects { get; } = new();          // full set
+    public ObservableCollection<ObjectNode> Objects { get; } = new(); // filtered view
+    [ObservableProperty] private bool _isExpanded;
+    public int AllCount => AllObjects.Count;
+    public string Header => $"{Title} ({AllObjects.Count})";
+    public bool HasVisible => Objects.Count > 0;
+
+    public void ShowAll()
+    {
+        Objects.Clear();
+        foreach (var o in AllObjects) Objects.Add(o);
+        OnPropertyChanged(nameof(HasVisible));
+    }
+
+    public void ShowOnly(IEnumerable<ObjectNode> items)
+    {
+        Objects.Clear();
+        foreach (var o in items) Objects.Add(o);
+        OnPropertyChanged(nameof(HasVisible));
+    }
+}
+
+public partial class ObjectNode : ObservableObject
+{
+    public string Schema { get; init; } = "";
+    public string Name { get; init; } = "";
+    public DbObjectKind Kind { get; init; }
+    public string FullName => $"{Schema}.{Name}";
+    public bool IsTable => Kind == DbObjectKind.Table;
+
+    public string KindLabel => Kind switch
+    {
+        DbObjectKind.Table => "TABLE",
+        DbObjectKind.View => "VIEW",
+        DbObjectKind.Function => "FUNCTION",
+        DbObjectKind.Procedure => "PROC",
+        DbObjectKind.Type => "TYPE",
+        DbObjectKind.Sequence => "SEQ",
+        _ => Kind.ToString().ToUpperInvariant()
+    };
+
+    [ObservableProperty] private bool _isChecked;
+}
+
+public partial class BackupViewModel : ObservableObject
+{
+    private readonly ProfileStore _profileStore = new();
+    private readonly SettingsStore _settingsStore = new();
+    private CancellationTokenSource? _cts;
+
+    public ObservableCollection<ConnectionProfile> Profiles { get; } = new();
+    [ObservableProperty] private ConnectionProfile? _selectedProfile;
+
+    public ObservableCollection<SchemaNode> Schemas { get; } = new();
+    private List<SchemaNode> _allSchemas = new();
+
+    [ObservableProperty] private string _searchText = "";
+    [ObservableProperty] private string _statusText = "Select a profile and click 'Load DB objects'.";
+    [ObservableProperty] private bool _isBusy;
+    [ObservableProperty] private bool _canCancel;
+    [ObservableProperty] private string _selectedSummary = "0 selected";
+
+    public List<string> Formats { get; } = new() { "Custom (.dump)", "Plain SQL (.sql)", "Tar (.tar)" };
+    [ObservableProperty] private string _selectedFormat = "Custom (.dump)";
+
+    public List<string> Scopes { get; } = new() { "Full database", "Selected schemas", "Selected tables" };
+    [ObservableProperty] private string _selectedScope = "Full database";
+
+    public List<string> Contents { get; } = new() { "Schema + Data", "Schema only", "Data only" };
+    [ObservableProperty] private string _selectedContent = "Schema + Data";
+
+    [ObservableProperty] private string _destinationRoot = "";
+    [ObservableProperty] private bool _useAutoFolders = true;
+    [ObservableProperty] private string _filenamePreview = "";
+    [ObservableProperty] private string _fullPathPreview = "";
+
+    public ObservableCollection<string> LogLines { get; } = new();
+
+    public BackupViewModel()
+    {
+        var settings = _settingsStore.Load();
+        DestinationRoot = settings.DefaultBackupRoot;
+        UseAutoFolders = settings.UseAutoFolders;
+        ReloadProfiles();
+    }
+
+    public void ReloadProfiles()
+    {
+        var currentId = SelectedProfile?.Id;
+        Profiles.Clear();
+        foreach (var p in _profileStore.LoadAll().OrderBy(p => p.Name))
+            Profiles.Add(p);
+        SelectedProfile = currentId.HasValue
+            ? Profiles.FirstOrDefault(p => p.Id == currentId) ?? Profiles.FirstOrDefault()
+            : Profiles.FirstOrDefault();
+        UpdateFilenamePreview();
+    }
+
+    partial void OnSelectedProfileChanged(ConnectionProfile? value) => UpdateFilenamePreview();
+    partial void OnSelectedFormatChanged(string value) => UpdateFilenamePreview();
+    partial void OnSelectedScopeChanged(string value) => UpdateFilenamePreview();
+    partial void OnSelectedContentChanged(string value) => UpdateFilenamePreview();
+    partial void OnDestinationRootChanged(string value) => UpdateFilenamePreview();
+    partial void OnUseAutoFoldersChanged(bool value) => UpdateFilenamePreview();
+    partial void OnSearchTextChanged(string value) => ApplyFilter();
+
+    private void UpdateFilenamePreview()
+    {
+        if (SelectedProfile is null) { FilenamePreview = ""; FullPathPreview = ""; return; }
+        var job = BuildJob();
+        var now = DateTime.Now;
+        FilenamePreview = FilenameBuilder.BuildFileName(job, now);
+        FullPathPreview = FilenameBuilder.BuildFullPath(job, now);
+    }
+
+    private BackupJob BuildJob() => new()
+    {
+        Host = SelectedProfile?.Host ?? "",
+        Port = SelectedProfile?.Port ?? 5432,
+        Database = SelectedProfile?.Database ?? "",
+        Username = SelectedProfile?.Username ?? "",
+        Format = SelectedFormat switch
+        {
+            "Plain SQL (.sql)" => BackupFormat.Plain,
+            "Tar (.tar)" => BackupFormat.Tar,
+            _ => BackupFormat.Custom
+        },
+        Scope = SelectedScope switch
+        {
+            "Selected schemas" => BackupScope.SpecificSchemas,
+            "Selected tables" => BackupScope.SpecificTables,
+            _ => BackupScope.FullDatabase
+        },
+        Content = SelectedContent switch
+        {
+            "Schema only" => DumpContent.SchemaOnly,
+            "Data only" => DumpContent.DataOnly,
+            _ => DumpContent.Both
+        },
+        DestinationRoot = DestinationRoot,
+        UseAutoFolders = UseAutoFolders,
+    };
+
+    private void ApplyFilter()
+    {
+        var term = SearchText?.Trim() ?? "";
+        Schemas.Clear();
+        foreach (var s in _allSchemas)
+        {
+            if (string.IsNullOrEmpty(term))
+            {
+                // No filter: show every folder in full, collapsed to defaults.
+                foreach (var g in s.Groups) { g.ShowAll(); g.IsExpanded = false; }
+                s.IsExpanded = false;
+                Schemas.Add(s);
+                continue;
+            }
+
+            var matchSchema = s.Name.Contains(term, StringComparison.OrdinalIgnoreCase);
+            var anyMatch = false;
+            foreach (var g in s.Groups)
+            {
+                if (matchSchema)
+                {
+                    g.ShowAll();
+                }
+                else
+                {
+                    var hits = g.AllObjects.Where(o => o.Name.Contains(term, StringComparison.OrdinalIgnoreCase));
+                    g.ShowOnly(hits);
+                }
+                g.IsExpanded = g.HasVisible;          // auto-open folders with hits
+                if (g.HasVisible) anyMatch = true;
+            }
+            if (matchSchema || anyMatch)
+            {
+                s.IsExpanded = true;                  // auto-open schemas with hits
+                Schemas.Add(s);
+            }
+        }
+    }
+
+    private void SchemaNode_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(SchemaNode.IsChecked)) return;
+        UpdateSelectedSummary();
+        // Ticking a schema means "back up whole schemas".
+        if (sender is SchemaNode { IsChecked: true }) SelectedScope = "Selected schemas";
+    }
+
+    // A manual single-table tick (not part of a schema cascade) means
+    // "back up selected tables" — flip the scope so the dump targets tables.
+    private void ObjectNode_PropertyChanged(SchemaNode schema, ObjectNode node, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ObjectNode.IsChecked)) return;
+        if (node.IsChecked && !schema.Cascading) SelectedScope = "Selected tables";
+    }
+
+    private void UpdateSelectedSummary()
+    {
+        var count = _allSchemas.Count(s => s.IsChecked);
+        SelectedSummary = $"{count} selected";
+    }
+
+    [RelayCommand]
+    private async Task LoadObjectsAsync()
+    {
+        if (SelectedProfile is null) { StatusText = "Pick a profile first."; return; }
+        try
+        {
+            IsBusy = true;
+            StatusText = "Connecting and querying object catalog...";
+            var pwd = SecretProtector.Unprotect(SelectedProfile.EncryptedPasswordBase64);
+            var connStr = SelectedProfile.BuildConnectionString(pwd);
+            var objects = await DbObjectInspector.InspectAsync(connStr);
+
+            _allSchemas = objects
+                .Where(o => o.Kind == DbObjectKind.Schema)
+                .Select(s => new SchemaNode { Name = s.Name })
+                .ToList();
+            var schemaMap = _allSchemas.ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
+
+            // Bucket objects per schema per kind so we can build folder groups.
+            var buckets = _allSchemas.ToDictionary(
+                s => s.Name,
+                _ => new Dictionary<DbObjectKind, List<ObjectNode>>(),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var o in objects.Where(o => o.Kind != DbObjectKind.Schema))
+            {
+                if (!schemaMap.TryGetValue(o.Schema, out var node)) continue;
+                // Procedures are reported as functions by the catalog query → one bucket.
+                var kind = o.Kind == DbObjectKind.Procedure ? DbObjectKind.Function : o.Kind;
+                var byKind = buckets[node.Name];
+                if (!byKind.TryGetValue(kind, out var listForKind)) { listForKind = new(); byKind[kind] = listForKind; }
+                listForKind.Add(new ObjectNode { Schema = o.Schema, Name = o.Name, Kind = kind });
+                switch (kind)
+                {
+                    case DbObjectKind.Table: node.TableCount++; break;
+                    case DbObjectKind.Function: node.FunctionCount++; break;
+                    case DbObjectKind.View: node.ViewCount++; break;
+                    case DbObjectKind.Type: node.TypeCount++; break;
+                    case DbObjectKind.Sequence: node.SequenceCount++; break;
+                }
+            }
+
+            // Folder order: Tables, Views, Functions, Sequences, Types.
+            (DbObjectKind Kind, string Title)[] folderOrder =
+            {
+                (DbObjectKind.Table, "Tables"),
+                (DbObjectKind.View, "Views"),
+                (DbObjectKind.Function, "Functions"),
+                (DbObjectKind.Sequence, "Sequences"),
+                (DbObjectKind.Type, "Types"),
+            };
+
+            foreach (var s in _allSchemas)
+            {
+                var byKind = buckets[s.Name];
+                foreach (var (kind, title) in folderOrder)
+                {
+                    if (!byKind.TryGetValue(kind, out var items) || items.Count == 0) continue;
+                    var group = new ObjectGroup { Title = title, Kind = kind };
+                    foreach (var o in items.OrderBy(o => o.Name, StringComparer.OrdinalIgnoreCase))
+                    {
+                        group.AllObjects.Add(o);
+                        group.Objects.Add(o);
+                        // Tables drive "Selected tables" scope when picked individually.
+                        if (o.IsTable) o.PropertyChanged += (snd, ev) => ObjectNode_PropertyChanged(s, (ObjectNode)snd!, ev);
+                    }
+                    s.Groups.Add(group);
+                }
+                s.RefreshSummary();
+                s.PropertyChanged += SchemaNode_PropertyChanged;
+            }
+
+            ApplyFilter();
+            UpdateSelectedSummary();
+            var totalTables = _allSchemas.Sum(s => s.TableCount);
+            var totalFns = _allSchemas.Sum(s => s.FunctionCount);
+            StatusText = $"Loaded {_allSchemas.Count} schemas · {totalTables} tables · {totalFns} functions.";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"ERROR loading objects: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void BrowseDestination()
+    {
+        var dlg = new OpenFolderDialog { Title = "Select backup destination root" };
+        if (!string.IsNullOrEmpty(DestinationRoot) && Directory.Exists(DestinationRoot))
+            dlg.InitialDirectory = DestinationRoot;
+        if (dlg.ShowDialog() == true) DestinationRoot = dlg.FolderName;
+    }
+
+    [RelayCommand]
+    private async Task StartBackupAsync()
+    {
+        if (SelectedProfile is null) { StatusText = "Pick a profile first."; return; }
+        if (string.IsNullOrWhiteSpace(DestinationRoot)) { StatusText = "Pick a destination root folder."; return; }
+
+        var settings = _settingsStore.Load();
+        var tools = PgToolsLocator.Locate(settings.PgBinDirOverride);
+        if (string.IsNullOrEmpty(tools.PgDump))
+        {
+            StatusText = "pg_dump.exe not found. Configure it in Settings.";
+            return;
+        }
+
+        var job = BuildJob();
+
+        if (job.Scope == BackupScope.SpecificSchemas)
+        {
+            job.IncludeSchemas = _allSchemas.Where(s => s.IsChecked).Select(s => s.Name).ToList();
+            if (job.IncludeSchemas.Count == 0) { StatusText = "Tick at least one schema."; return; }
+        }
+        else if (job.Scope == BackupScope.SpecificTables)
+        {
+            job.IncludeTables = _allSchemas
+                .SelectMany(s => s.Groups).Where(g => g.IsTableGroup)
+                .SelectMany(g => g.AllObjects)
+                .Where(o => o.IsChecked).Select(o => o.FullName).ToList();
+            if (job.IncludeTables.Count == 0) { StatusText = "Tick at least one table."; return; }
+        }
+
+        var now = DateTime.Now;
+        job.FullOutputPath = FilenameBuilder.BuildFullPath(job, now);
+
+        LogLines.Clear();
+        AppendLog($">> pg_dump → {job.FullOutputPath}");
+        AppendLog($">> args: --host={job.Host} --port={job.Port} --dbname={job.Database} --format={job.FormatChar} content={job.Content} scope={job.Scope}");
+
+        _cts = new CancellationTokenSource();
+        IsBusy = true; CanCancel = true;
+        StatusText = "Running pg_dump...";
+
+        try
+        {
+            var pwd = SecretProtector.Unprotect(SelectedProfile.EncryptedPasswordBase64);
+            var runner = new PgDumpRunner();
+            runner.Process.StdoutLine += OnLogLine;
+            runner.Process.StderrLine += OnLogLine;
+
+            var exitCode = await runner.RunAsync(tools.PgDump!, job, pwd, _cts.Token);
+
+            runner.Process.StdoutLine -= OnLogLine;
+            runner.Process.StderrLine -= OnLogLine;
+
+            if (exitCode == 0)
+            {
+                var size = new FileInfo(job.FullOutputPath).Length;
+                AppendLog($">> SUCCESS · file size {size / 1024.0:F1} KB");
+                StatusText = $"Backup OK: {Path.GetFileName(job.FullOutputPath)}";
+            }
+            else
+            {
+                AppendLog($">> pg_dump exited with code {exitCode}");
+                StatusText = $"pg_dump failed (exit {exitCode}). See log.";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog(">> Cancelled by user.");
+            StatusText = "Cancelled.";
+        }
+        catch (Exception ex)
+        {
+            AppendLog($">> ERROR: {ex.Message}");
+            StatusText = $"ERROR: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false; CanCancel = false;
+            _cts?.Dispose(); _cts = null;
+        }
+    }
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        _cts?.Cancel();
+    }
+
+    private void OnLogLine(object? sender, string line) => AppendLog(line);
+
+    private void AppendLog(string line)
+    {
+        if (Application.Current?.Dispatcher.CheckAccess() == false)
+            Application.Current.Dispatcher.BeginInvoke(() => AppendLog(line));
+        else
+            LogLines.Add(line);
+    }
+}

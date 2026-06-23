@@ -1,0 +1,20 @@
+<Application x:Class="PgBackupManager.UI.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:PgBackupManager.UI"
+             xmlns:conv="clr-namespace:PgBackupManager.UI.Converters"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Theme/Design.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+            <conv:ZeroToCollapsedConverter x:Key="ZeroToCollapsed" />
+            <conv:StringEmptyToVisibleConverter x:Key="EmptyToVisible" />
+            <conv:LogLineBrushConverter x:Key="LogLineBrush" />
+            <conv:StatusBrushConverter x:Key="StatusBrush" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
