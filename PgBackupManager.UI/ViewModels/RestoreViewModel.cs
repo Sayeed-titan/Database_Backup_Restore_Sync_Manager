@@ -66,6 +66,7 @@ public partial class RestoreViewModel : ObservableObject
     [ObservableProperty] private ConnectionProfile? _selectedProfile;
 
     [ObservableProperty] private string _backupFile = "";
+    [ObservableProperty] private bool _useLatestBackup;
     [ObservableProperty] private string _statusText = "Pick a backup file and a target profile, then 'Analyze'.";
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _canCancel;
@@ -187,6 +188,35 @@ public partial class RestoreViewModel : ObservableObject
             InitialDirectory = Directory.Exists(settings.DefaultRestoreSource) ? settings.DefaultRestoreSource : null,
         };
         if (dlg.ShowDialog() == true) BackupFile = dlg.FileName;
+    }
+
+    private static readonly string[] BackupFileExtensions = { ".dump", ".sql", ".tar", ".backup" };
+
+    // Searches the whole Default Restore Source tree (including the Y/M/D
+    // auto-folders backups get saved under) for the most recently written
+    // backup file — same extension set RetentionPolicy uses.
+    private string? FindLatestBackupFile()
+    {
+        var root = _settingsStore.Load().DefaultRestoreSource;
+        if (!Directory.Exists(root)) return null;
+        return Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+            .Where(p => BackupFileExtensions.Contains(Path.GetExtension(p), StringComparer.OrdinalIgnoreCase))
+            .Select(p => new FileInfo(p))
+            .OrderByDescending(f => f.LastWriteTime)
+            .FirstOrDefault()?.FullName;
+    }
+
+    partial void OnUseLatestBackupChanged(bool value)
+    {
+        if (!value) return;
+        var latest = FindLatestBackupFile();
+        if (latest is null)
+        {
+            StatusText = "No backup files found under the Default Restore Source folder — check Settings.";
+            return;
+        }
+        BackupFile = latest;
+        StatusText = $"Using latest backup: {Path.GetFileName(latest)}";
     }
 
     [RelayCommand]
