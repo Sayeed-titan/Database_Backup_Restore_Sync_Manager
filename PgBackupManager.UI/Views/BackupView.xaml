@@ -36,27 +36,33 @@
                     </Button>
                 </Grid>
 
-                <!-- Scope / Format / Content -->
+                <!-- Scope / Format / Content / Jobs -->
                 <Grid Margin="0,0,0,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,7,0">
                         <TextBlock Text="SCOPE" Style="{StaticResource FieldLabel}" />
                         <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
                                   ItemsSource="{Binding Scopes}" SelectedItem="{Binding SelectedScope}" />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Margin="3.5,0">
+                    <StackPanel Grid.Column="1" Margin="7,0">
                         <TextBlock Text="FORMAT" Style="{StaticResource FieldLabel}" />
                         <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
                                   ItemsSource="{Binding Formats}" SelectedItem="{Binding SelectedFormat}" />
                     </StackPanel>
-                    <StackPanel Grid.Column="2" Margin="7,0,0,0">
+                    <StackPanel Grid.Column="2" Margin="7,0">
                         <TextBlock Text="CONTENT" Style="{StaticResource FieldLabel}" />
                         <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
                                   ItemsSource="{Binding Contents}" SelectedItem="{Binding SelectedContent}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="3" Margin="7,0,0,0"
+                                ToolTip="pg_dump --jobs=N — only works with 'Directory (parallel)' format; ignored/blocked otherwise.">
+                        <TextBlock Text="JOBS" Style="{StaticResource FieldLabel}" />
+                        <TextBox Style="{StaticResource InputBox}" Width="50" TextAlignment="Center" Text="{Binding ParallelJobs, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                 </Grid>
 
@@ -307,6 +313,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="8" Height="8" Margin="0,0,8,0" Fill="{Binding StatusText, Converter={StaticResource StatusBrush}}" />
@@ -314,7 +321,18 @@
                                Foreground="{Binding StatusText, Converter={StaticResource StatusBrush}}"
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0" MinWidth="170"
+                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}">
+                    <TextBlock FontSize="11" Foreground="{StaticResource Secondary}" HorizontalAlignment="Right">
+                        <Run Text="{Binding ElapsedText, Mode=OneWay}" FontWeight="Bold" />
+                        <Run Text=" elapsed" />
+                        <Run Text="  ·  " />
+                        <Run Text="{Binding EtaText, Mode=OneWay}" />
+                    </TextBlock>
+                    <ProgressBar Height="5" Margin="0,4,0,0" Minimum="0" Maximum="100" Value="{Binding ProgressPercent, Mode=OneWay}"
+                                 Visibility="{Binding HasProgress, Converter={StaticResource BoolToVisible}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Button Style="{StaticResource GhostButton}" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}"
                             Content="CANCEL" Margin="0,0,10,0" Padding="20,9" />
                     <Button Style="{StaticResource PrimaryButton}" Command="{Binding StartBackupCommand}">

@@ -25,6 +25,11 @@ public sealed class BackupJob
     public bool UseAutoFolders { get; set; } = true;
     public string FileName { get; set; } = "";
 
+    // pg_dump --jobs=N. Only meaningful with Directory format — pg_dump refuses
+    // parallel workers with any other archive format, since only Directory
+    // format lays tables out as separate files workers can write concurrently.
+    public int Jobs { get; set; } = 1;
+
     public string FullOutputPath { get; set; } = "";
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 

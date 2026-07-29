@@ -51,6 +51,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,10,0">
                         <TextBlock Text="BACKUP FILE" Style="{StaticResource FieldLabel}" />
@@ -64,15 +65,23 @@
                             <TextBlock Text="BROWSE" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <CheckBox Grid.Column="2" Style="{StaticResource DesignCheck}" Content="Use latest" IsChecked="{Binding UseLatestBackup}"
+                    <Button Grid.Column="2" Style="{StaticResource GhostButton}" Command="{Binding BrowseFolderCommand}" VerticalAlignment="Bottom" Height="38" Margin="0,0,8,0"
+                            ToolTip="For Directory-format backups (pg_dump -Fd), which are a folder rather than a single file.">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Width="13" Height="13" Stretch="Uniform" Stroke="{StaticResource Secondary}" StrokeThickness="2" StrokeLineJoin="Round" Margin="0,0,6,0"
+                                  Data="M3 6 a2 2 0 0 1 2 -2 h4 l2 2 h8 a2 2 0 0 1 2 2 v9 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 Z" />
+                            <TextBlock Text="FOLDER" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <CheckBox Grid.Column="3" Style="{StaticResource DesignCheck}" Content="Use latest" IsChecked="{Binding UseLatestBackup}"
                               VerticalAlignment="Bottom" Margin="0,0,14,10"
-                              ToolTip="Tick to instantly fill in the most recently written backup file found under the Default Restore Source folder (Settings tab)." />
-                    <StackPanel Grid.Column="3" Margin="0,0,10,0" VerticalAlignment="Bottom">
+                              ToolTip="Tick to instantly fill in the most recently written backup (file or folder) found under the Default Restore Source folder (Settings tab)." />
+                    <StackPanel Grid.Column="4" Margin="0,0,10,0" VerticalAlignment="Bottom">
                         <TextBlock Text="TARGET PROFILE" Style="{StaticResource FieldLabel}" />
                         <ComboBox Width="180" Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
                                   ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" DisplayMemberPath="Name" />
                     </StackPanel>
-                    <Button Grid.Column="4" Style="{StaticResource PrimaryButton}" Command="{Binding AnalyzeCommand}" VerticalAlignment="Bottom" Height="38">
+                    <Button Grid.Column="5" Style="{StaticResource PrimaryButton}" Command="{Binding AnalyzeCommand}" VerticalAlignment="Bottom" Height="38">
                         <StackPanel Orientation="Horizontal">
                             <ctrl:Spinner Width="13" Height="13" Margin="0,0,7,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
                             <TextBlock Text="Analyze" VerticalAlignment="Center" />
@@ -103,7 +112,12 @@
                     <CheckBox Style="{StaticResource DesignCheck}" Content="Single transaction (rollback on error)" IsChecked="{Binding SingleTransaction}" Margin="0,0,18,0" />
                     <CheckBox Style="{StaticResource DesignCheck}" Content="Drop existing first (--clean --if-exists)" IsChecked="{Binding CleanFirst}" Margin="0,0,18,0" />
                     <CheckBox Style="{StaticResource DesignCheck}" Content="--no-owner" IsChecked="{Binding NoOwner}" Margin="0,0,18,0" />
-                    <CheckBox Style="{StaticResource DesignCheck}" Content="--no-privileges" IsChecked="{Binding NoPrivileges}" />
+                    <CheckBox Style="{StaticResource DesignCheck}" Content="--no-privileges" IsChecked="{Binding NoPrivileges}" Margin="0,0,18,0" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                ToolTip="pg_restore --jobs=N — runs N workers in parallel for faster restores. Postgres refuses this together with 'Single transaction', so untick that first.">
+                        <TextBlock Text="Parallel jobs" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBox Style="{StaticResource InputBox}" Width="46" TextAlignment="Center" Text="{Binding ParallelJobs, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
                 </WrapPanel>
 
                 <!-- Schema include bar -->
@@ -334,9 +348,21 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="12" Foreground="{StaticResource Secondary}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0" MinWidth="170"
+                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}">
+                    <TextBlock FontSize="11" Foreground="{StaticResource Secondary}" HorizontalAlignment="Right">
+                        <Run Text="{Binding ElapsedText, Mode=OneWay}" FontWeight="Bold" />
+                        <Run Text=" elapsed" />
+                        <Run Text="  ·  " />
+                        <Run Text="{Binding EtaText, Mode=OneWay}" />
+                    </TextBlock>
+                    <ProgressBar Height="5" Margin="0,4,0,0" Minimum="0" Maximum="100" Value="{Binding ProgressPercent, Mode=OneWay}"
+                                 Visibility="{Binding HasProgress, Converter={StaticResource BoolToVisible}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Button Style="{StaticResource GhostButton}" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}" Content="CANCEL" Margin="0,0,10,0" Padding="20,9" />
                     <Button Style="{StaticResource PrimaryButton}" Command="{Binding StartRestoreCommand}">
                         <StackPanel Orientation="Horizontal">

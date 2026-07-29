@@ -33,6 +33,7 @@ public sealed class PgDumpRunner
 
         if (job.Content == DumpContent.SchemaOnly) args.Add("--schema-only");
         if (job.Content == DumpContent.DataOnly) args.Add("--data-only");
+        if (job.Jobs > 1) args.Add($"--jobs={job.Jobs}");
 
         foreach (var s in job.IncludeSchemas) args.Add($"--schema=\"{s}\"");
         foreach (var t in job.IncludeTables) args.Add($"--table={QuoteQualifiedName(t)}");

@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -115,7 +118,29 @@ public partial class BackupViewModel : ObservableObject
     [ObservableProperty] private bool _canCancel;
     [ObservableProperty] private string _selectedSummary = "0 selected";
 
-    public List<string> Formats { get; } = new() { "Custom (.dump)", "Plain SQL (.sql)", "Tar (.tar)" };
+    // Elapsed / ETA while a backup is running. ETA is weighted by on-disk table
+    // bytes (fetched once, up front) rather than table count, since a handful of
+    // huge tables next to many empty ones makes table-count a poor time proxy.
+    [ObservableProperty] private string _elapsedText = "";
+    [ObservableProperty] private string _etaText = "";
+    [ObservableProperty] private double _progressPercent;
+    [ObservableProperty] private bool _hasProgress;
+    private Stopwatch? _stopwatch;
+    private DispatcherTimer? _elapsedTimer;
+    private IReadOnlyDictionary<string, long> _tableBytes = new Dictionary<string, long>();
+    private long _totalBytes;
+    private long _doneBytes;
+    // Tables already credited — a set rather than "the one current table"
+    // because --jobs > 1 dumps several tables concurrently, so there is no
+    // single "in progress" table to track sequentially.
+    private readonly HashSet<string> _tablesCredited = new(StringComparer.Ordinal);
+    private static readonly Regex DumpingTableRx = new(@"dumping contents of table ""(.+)""", RegexOptions.Compiled);
+
+    // pg_dump --jobs=N. Only valid with Directory format — enforced as a
+    // pre-flight check in StartBackupAsync, not silently overridden here.
+    [ObservableProperty] private int _parallelJobs = 1;
+
+    public List<string> Formats { get; } = new() { "Custom (.dump)", "Plain SQL (.sql)", "Tar (.tar)", "Directory (parallel)" };
     [ObservableProperty] private string _selectedFormat = "Custom (.dump)";
 
     public List<string> Scopes { get; } = new() { "Full database", "Selected schemas", "Selected tables" };
@@ -178,6 +203,7 @@ public partial class BackupViewModel : ObservableObject
         {
             "Plain SQL (.sql)" => BackupFormat.Plain,
             "Tar (.tar)" => BackupFormat.Tar,
+            "Directory (parallel)" => BackupFormat.Directory,
             _ => BackupFormat.Custom
         },
         Scope = SelectedScope switch
@@ -194,6 +220,7 @@ public partial class BackupViewModel : ObservableObject
         },
         DestinationRoot = DestinationRoot,
         UseAutoFolders = UseAutoFolders,
+        Jobs = ParallelJobs,
     };
 
     private void ApplyFilter()
@@ -360,6 +387,15 @@ public partial class BackupViewModel : ObservableObject
         if (SelectedProfile is null) { StatusText = "Pick a profile first."; return; }
         if (string.IsNullOrWhiteSpace(DestinationRoot)) { StatusText = "Pick a destination root folder."; return; }
 
+        // pg_dump refuses --jobs with any format other than Directory — only
+        // that format lays tables out as separate files workers can write to
+        // concurrently, so this is a hard restriction, not a UI preference.
+        if (ParallelJobs > 1 && SelectedFormat != "Directory (parallel)")
+        {
+            StatusText = "Parallel jobs requires the 'Directory (parallel)' format — pg_dump won't run parallel workers with any other format.";
+            return;
+        }
+
         var settings = _settingsStore.Load();
         var tools = PgToolsLocator.Locate(settings.PgBinDirOverride);
         if (string.IsNullOrEmpty(tools.PgDump))
@@ -395,23 +431,58 @@ public partial class BackupViewModel : ObservableObject
         IsBusy = true; CanCancel = true;
         StatusText = "Running pg_dump...";
 
+        // Reset progress state from any previous run before this one starts.
+        _tableBytes = new Dictionary<string, long>();
+        _totalBytes = 0; _doneBytes = 0; _tablesCredited.Clear();
+        ProgressPercent = 0; HasProgress = false; ElapsedText = "00:00"; EtaText = "";
+
         try
         {
             var pwd = SecretProtector.Unprotect(SelectedProfile.EncryptedPasswordBase64);
+
+            // Best-effort size estimate for the ETA — if this fails (network hiccup,
+            // no privilege, whatever) the backup still proceeds, just without an ETA.
+            try
+            {
+                var connStr = SelectedProfile.BuildConnectionString(pwd);
+                var estimate = await TableSizeEstimator.EstimateAsync(connStr, job, _cts.Token);
+                _tableBytes = estimate.BytesByTable;
+                _totalBytes = estimate.TotalBytes;
+                HasProgress = _totalBytes > 0;
+            }
+            catch { /* no ETA this run — not fatal */ }
+
+            _stopwatch = Stopwatch.StartNew();
+            _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _elapsedTimer.Tick += OnElapsedTick;
+            _elapsedTimer.Start();
+
             var runner = new PgDumpRunner();
             runner.Process.StdoutLine += OnLogLine;
             runner.Process.StderrLine += OnLogLine;
+            runner.Process.StderrLine += OnDumpProgressLine;
 
             var exitCode = await runner.RunAsync(tools.PgDump!, job, pwd, _cts.Token);
 
             runner.Process.StdoutLine -= OnLogLine;
             runner.Process.StderrLine -= OnLogLine;
+            runner.Process.StderrLine -= OnDumpProgressLine;
+
+            _elapsedTimer.Stop();
+            ElapsedText = FormatDuration(_stopwatch.Elapsed);
 
             if (exitCode == 0)
             {
-                var size = new FileInfo(job.FullOutputPath).Length;
-                AppendLog($">> SUCCESS · file size {size / 1024.0:F1} KB");
-                StatusText = $"Backup OK: {Path.GetFileName(job.FullOutputPath)}";
+                _doneBytes = _totalBytes;
+                ProgressPercent = HasProgress ? 100 : 0;
+                EtaText = HasProgress ? "done" : "";
+                // Directory format writes a folder (one file per table plus a
+                // TOC), not a single file — FileInfo can't size that.
+                var size = job.Format == BackupFormat.Directory
+                    ? new DirectoryInfo(job.FullOutputPath).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length)
+                    : new FileInfo(job.FullOutputPath).Length;
+                AppendLog($">> SUCCESS · size {size / 1024.0:F1} KB · took {ElapsedText}");
+                StatusText = $"Backup OK: {Path.GetFileName(job.FullOutputPath)} (took {ElapsedText})";
             }
             else
             {
@@ -431,6 +502,7 @@ public partial class BackupViewModel : ObservableObject
         }
         finally
         {
+            _elapsedTimer?.Stop();
             IsBusy = false; CanCancel = false;
             _cts?.Dispose(); _cts = null;
         }
@@ -458,4 +530,45 @@ public partial class BackupViewModel : ObservableObject
         else
             LogLines.Add(line);
     }
+
+    // pg_dump's verbose stderr announces "dumping contents of table X" as each
+    // table starts. Credit the table's bytes as soon as it starts rather than
+    // waiting for the next table's line: with --jobs > 1 several tables dump
+    // concurrently, so there is no single "previous" table to wait on, and
+    // crediting on start (vs. confirmed completion) is the simplification that
+    // works the same way whether jobs=1 or jobs=N.
+    private void OnDumpProgressLine(object? sender, string line)
+    {
+        if (Application.Current?.Dispatcher.CheckAccess() == false)
+        {
+            Application.Current.Dispatcher.BeginInvoke(() => OnDumpProgressLine(sender, line));
+            return;
+        }
+
+        var m = DumpingTableRx.Match(line);
+        if (!m.Success) return;
+
+        var table = m.Groups[1].Value;
+        if (_tablesCredited.Add(table) && _tableBytes.TryGetValue(table, out var bytes))
+            _doneBytes += bytes;
+
+        if (_totalBytes > 0)
+            ProgressPercent = Math.Clamp((double)_doneBytes / _totalBytes * 100.0, 0, 100);
+    }
+
+    private void OnElapsedTick(object? sender, EventArgs e)
+    {
+        if (_stopwatch is null) return;
+        ElapsedText = FormatDuration(_stopwatch.Elapsed);
+
+        if (!HasProgress) { EtaText = ""; return; }
+        if (ProgressPercent < 1.0) { EtaText = "estimating..."; return; }
+
+        var remainingFraction = (100.0 - ProgressPercent) / ProgressPercent;
+        var eta = TimeSpan.FromSeconds(_stopwatch.Elapsed.TotalSeconds * remainingFraction);
+        EtaText = $"~{FormatDuration(eta)} remaining";
+    }
+
+    private static string FormatDuration(TimeSpan t) =>
+        t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{t.Minutes:00}:{t.Seconds:00}";
 }

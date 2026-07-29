@@ -20,6 +20,12 @@ public sealed class RestoreOptions
     public bool NoOwner { get; set; } = true;
     public bool NoPrivileges { get; set; } = true;
 
+    // Parallel restore workers. pg_restore refuses to combine --jobs with
+    // --single-transaction (mutually exclusive at the Postgres level) — callers
+    // must ensure SingleTransaction is off whenever Jobs > 1, this class does
+    // not silently override either setting.
+    public int Jobs { get; set; } = 1;
+
     // FULL-FIDELITY restore (recommended): hand whole schemas to pg_restore so it
     // brings EVERYTHING — table data, indexes, constraints, sequences values,
     // triggers, defaults — in the correct dependency order. Nothing is filtered.
@@ -52,6 +58,7 @@ public sealed class PgRestoreRunner
 
         if (opts.SingleTransaction) args.Add("--single-transaction");
         if (opts.CleanFirst) { args.Add("--clean"); args.Add("--if-exists"); }
+        if (opts.Jobs > 1) args.Add($"--jobs={opts.Jobs}");
         if (opts.NoOwner) args.Add("--no-owner");
         if (opts.NoPrivileges) args.Add("--no-privileges");
 

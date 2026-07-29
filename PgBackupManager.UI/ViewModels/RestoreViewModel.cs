@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -81,10 +84,32 @@ public partial class RestoreViewModel : ObservableObject
     [ObservableProperty] private bool _noOwner = true;
     [ObservableProperty] private bool _noPrivileges = true;
 
+    // Parallel restore workers (pg_restore --jobs). Postgres itself refuses to
+    // combine --jobs with --single-transaction, so this is only usable once
+    // Single transaction is unchecked — enforced in StartRestoreAsync's
+    // pre-flight check, not silently overridden here.
+    [ObservableProperty] private int _parallelJobs = 1;
+
     [ObservableProperty] private bool _showNew = true;
     [ObservableProperty] private bool _showExisting;
     [ObservableProperty] private bool _showMissing;
     [ObservableProperty] private string _searchText = "";
+
+    // Elapsed / ETA while a restore is running. Weighted by total TOC entries
+    // in the ticked schemas (tables, data, indexes, constraints, etc. all count
+    // individually) since that is the actual unit pg_restore's verbose output
+    // advances through, one "creating X" / "processing data for table X" line
+    // at a time.
+    [ObservableProperty] private string _elapsedText = "";
+    [ObservableProperty] private string _etaText = "";
+    [ObservableProperty] private double _progressPercent;
+    [ObservableProperty] private bool _hasProgress;
+    private Stopwatch? _stopwatch;
+    private DispatcherTimer? _elapsedTimer;
+    private int _totalEntriesInScope;
+    private int _doneEntries;
+    private static readonly Regex RestoreProgressRx =
+        new(@"^pg_restore: (creating|processing data for table|executing SEQUENCE SET) ", RegexOptions.Compiled);
 
     public ObservableCollection<DiffRow> Rows { get; } = new();
     public ObservableCollection<SchemaFilterItem> BackupSchemas { get; } = new();
@@ -190,20 +215,44 @@ public partial class RestoreViewModel : ObservableObject
         if (dlg.ShowDialog() == true) BackupFile = dlg.FileName;
     }
 
+    // Directory-format backups (pg_dump -Fd) are a FOLDER, not a single file —
+    // OpenFileDialog can't select one, so this is a separate picker.
+    [RelayCommand]
+    private void BrowseFolder()
+    {
+        var settings = _settingsStore.Load();
+        var dlg = new OpenFolderDialog
+        {
+            Title = "Pick a directory-format PostgreSQL backup folder",
+            InitialDirectory = Directory.Exists(settings.DefaultRestoreSource) ? settings.DefaultRestoreSource : null,
+        };
+        if (dlg.ShowDialog() == true) BackupFile = dlg.FolderName;
+    }
+
     private static readonly string[] BackupFileExtensions = { ".dump", ".sql", ".tar", ".backup" };
 
     // Searches the whole Default Restore Source tree (including the Y/M/D
     // auto-folders backups get saved under) for the most recently written
-    // backup file — same extension set RetentionPolicy uses.
+    // backup — same extension set RetentionPolicy uses for single-file
+    // backups, PLUS directory-format backups (folders containing pg_dump -Fd's
+    // toc.dat marker), since a folder has no extension to match on.
     private string? FindLatestBackupFile()
     {
         var root = _settingsStore.Load().DefaultRestoreSource;
         if (!Directory.Exists(root)) return null;
-        return Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+
+        var fileCandidates = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
             .Where(p => BackupFileExtensions.Contains(Path.GetExtension(p), StringComparer.OrdinalIgnoreCase))
-            .Select(p => new FileInfo(p))
-            .OrderByDescending(f => f.LastWriteTime)
-            .FirstOrDefault()?.FullName;
+            .Select(p => (Path: p, When: new FileInfo(p).LastWriteTime));
+
+        var folderCandidates = Directory.EnumerateDirectories(root, "*", SearchOption.AllDirectories)
+            .Where(d => File.Exists(Path.Combine(d, "toc.dat")))
+            .Select(d => (Path: d, When: new FileInfo(Path.Combine(d, "toc.dat")).LastWriteTime));
+
+        return fileCandidates.Concat(folderCandidates)
+            .OrderByDescending(c => c.When)
+            .Select(c => c.Path)
+            .FirstOrDefault();
     }
 
     partial void OnUseLatestBackupChanged(bool value)
@@ -244,7 +293,8 @@ public partial class RestoreViewModel : ObservableObject
     [RelayCommand]
     private async Task AnalyzeAsync()
     {
-        if (string.IsNullOrWhiteSpace(BackupFile) || !File.Exists(BackupFile)) { StatusText = "Pick a valid backup file."; return; }
+        // Directory-format backups are a folder, not a single file — accept either.
+        if (string.IsNullOrWhiteSpace(BackupFile) || (!File.Exists(BackupFile) && !Directory.Exists(BackupFile))) { StatusText = "Pick a valid backup file."; return; }
         if (SelectedProfile is null) { StatusText = "Pick a target profile."; return; }
 
         var settings = _settingsStore.Load();
@@ -458,7 +508,7 @@ public partial class RestoreViewModel : ObservableObject
     [RelayCommand]
     private async Task StartRestoreAsync()
     {
-        if (string.IsNullOrWhiteSpace(BackupFile) || !File.Exists(BackupFile)) { StatusText = "Pick a backup file."; return; }
+        if (string.IsNullOrWhiteSpace(BackupFile) || (!File.Exists(BackupFile) && !Directory.Exists(BackupFile))) { StatusText = "Pick a backup file."; return; }
         if (SelectedProfile is null) { StatusText = "Pick a target profile."; return; }
 
         // FULL-FIDELITY restore driven by the "Schemas to restore" checkboxes.
@@ -494,6 +544,20 @@ public partial class RestoreViewModel : ObservableObject
             return;
         }
 
+        // Pre-flight: pg_restore refuses --jobs together with --single-transaction —
+        // this is a hard Postgres constraint, not something we can work around.
+        if (ParallelJobs > 1 && SingleTransaction)
+        {
+            MessageBox.Show(
+                $"Parallel jobs ({ParallelJobs}) can't be combined with 'Single transaction' — " +
+                "pg_restore itself refuses that combination.\n\n" +
+                "Either set Parallel jobs back to 1, or uncheck 'Single transaction' " +
+                "(you lose the all-or-nothing rollback safety net if you do).",
+                "Incompatible options", MessageBoxButton.OK, MessageBoxImage.Warning);
+            StatusText = "Parallel jobs requires 'Single transaction' to be off.";
+            return;
+        }
+
         // Safety confirmation — shows exactly WHERE this is going and that it is FULL.
         var confirm = MessageBox.Show(
             $"FULL restore of {ticked.Count} schema(s): {schemasInvolved}\n" +
@@ -524,6 +588,7 @@ public partial class RestoreViewModel : ObservableObject
             CleanFirst = CleanFirst,
             NoOwner = NoOwner,
             NoPrivileges = NoPrivileges,
+            Jobs = ParallelJobs,
             RestoreEntireFile = allTicked,
             IncludeSchemas = allTicked ? null : ticked,
         };
@@ -532,28 +597,50 @@ public partial class RestoreViewModel : ObservableObject
         AppendLog($">> pg_restore · FULL restore · schemas: {schemasInvolved}");
         AppendLog($">> mode: {(allTicked ? "entire archive" : "--schema=" + string.Join(" --schema=", ticked))}");
         AppendLog($">> TARGET: {opts.Database} @ {opts.Host}:{opts.Port} (user {opts.Username})");
-        AppendLog($">> options: single-tx={opts.SingleTransaction} clean={opts.CleanFirst} no-owner={opts.NoOwner} no-priv={opts.NoPrivileges}");
+        AppendLog($">> options: single-tx={opts.SingleTransaction} clean={opts.CleanFirst} no-owner={opts.NoOwner} no-priv={opts.NoPrivileges} jobs={opts.Jobs}");
 
         _cts = new CancellationTokenSource();
         IsBusy = true; CanCancel = true;
         StatusText = "Running pg_restore...";
 
+        // Progress is weighted by every TOC entry belonging to the ticked
+        // schemas (tables, data, indexes, constraints, sequences, etc. each
+        // count individually) — that's the real unit pg_restore advances
+        // through one verbose line at a time, unlike a plain object count.
+        var tickedSet = new HashSet<string>(ticked, StringComparer.OrdinalIgnoreCase);
+        _totalEntriesInScope = _allToc.Count(e => tickedSet.Contains(e.Schema));
+        _doneEntries = 0;
+        ProgressPercent = 0; HasProgress = _totalEntriesInScope > 0; ElapsedText = "00:00"; EtaText = "";
+
         try
         {
             var pwd = SecretProtector.Unprotect(SelectedProfile.EncryptedPasswordBase64);
+
+            _stopwatch = Stopwatch.StartNew();
+            _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _elapsedTimer.Tick += OnElapsedTick;
+            _elapsedTimer.Start();
+
             var runner = new PgRestoreRunner();
             runner.Process.StdoutLine += OnLogLine;
             runner.Process.StderrLine += OnLogLine;
+            runner.Process.StderrLine += OnRestoreProgressLine;
 
             var exit = await runner.RunAsync(tools.PgRestore!, opts, pwd, _cts.Token);
 
             runner.Process.StdoutLine -= OnLogLine;
             runner.Process.StderrLine -= OnLogLine;
+            runner.Process.StderrLine -= OnRestoreProgressLine;
+
+            _elapsedTimer.Stop();
+            ElapsedText = FormatDuration(_stopwatch.Elapsed);
 
             if (exit == 0)
             {
-                AppendLog(">> SUCCESS");
-                StatusText = $"Restore completed into '{opts.Database}' @ {opts.Host}.";
+                ProgressPercent = HasProgress ? 100 : 0;
+                EtaText = HasProgress ? "done" : "";
+                AppendLog($">> SUCCESS · took {ElapsedText}");
+                StatusText = $"Restore completed into '{opts.Database}' @ {opts.Host}. (took {ElapsedText})";
             }
             else
             {
@@ -565,6 +652,7 @@ public partial class RestoreViewModel : ObservableObject
         catch (Exception ex) { AppendLog($">> ERROR: {ex.Message}"); StatusText = $"ERROR: {ex.Message}"; }
         finally
         {
+            _elapsedTimer?.Stop();
             IsBusy = false; CanCancel = false;
             _cts?.Dispose(); _cts = null;
         }
@@ -588,4 +676,37 @@ public partial class RestoreViewModel : ObservableObject
         else
             LogLines.Add(line);
     }
+
+    // Every "creating X" / "processing data for table X" / "executing SEQUENCE
+    // SET X" verbose line is one TOC entry advancing — tally them against the
+    // total entries in scope (computed once at restore start) for a live %.
+    private void OnRestoreProgressLine(object? sender, string line)
+    {
+        if (Application.Current?.Dispatcher.CheckAccess() == false)
+        {
+            Application.Current.Dispatcher.BeginInvoke(() => OnRestoreProgressLine(sender, line));
+            return;
+        }
+
+        if (!RestoreProgressRx.IsMatch(line)) return;
+        _doneEntries++;
+        if (_totalEntriesInScope > 0)
+            ProgressPercent = Math.Clamp((double)_doneEntries / _totalEntriesInScope * 100.0, 0, 100);
+    }
+
+    private void OnElapsedTick(object? sender, EventArgs e)
+    {
+        if (_stopwatch is null) return;
+        ElapsedText = FormatDuration(_stopwatch.Elapsed);
+
+        if (!HasProgress) { EtaText = ""; return; }
+        if (ProgressPercent < 1.0) { EtaText = "estimating..."; return; }
+
+        var remainingFraction = (100.0 - ProgressPercent) / ProgressPercent;
+        var eta = TimeSpan.FromSeconds(_stopwatch.Elapsed.TotalSeconds * remainingFraction);
+        EtaText = $"~{FormatDuration(eta)} remaining";
+    }
+
+    private static string FormatDuration(TimeSpan t) =>
+        t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{t.Minutes:00}:{t.Seconds:00}";
 }
