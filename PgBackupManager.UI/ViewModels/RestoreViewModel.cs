@@ -95,8 +95,15 @@ public partial class RestoreViewModel : ObservableObject
     [ObservableProperty] private int _missingCount;
     [ObservableProperty] private int _selectedCount;
     // Objects that will actually be restored = everything in the ticked schemas
-    // (full restore). Drives the "WILL RESTORE" card.
+    // (full restore). Drives the "WILL RESTORE" card. This is a workload size,
+    // not an outcome — see ChangesCount for what actually happens.
     [ObservableProperty] private int _willRestoreCount;
+
+    // What will REALLY happen to the target given the current Drop-existing /
+    // Single-transaction options — drives the "CHANGES TO TARGET" card.
+    [ObservableProperty] private int _changesCount;
+    [ObservableProperty] private string _changesDetail = "";
+    [ObservableProperty] private Brush _changesBrush = Brushes.Gray;
 
     // Per-kind breakdowns (e.g. "0 tables · 250 fns · 2 types") so it is obvious
     // what each bucket contains — answers "why does NEW show only functions?".
@@ -124,6 +131,8 @@ public partial class RestoreViewModel : ObservableObject
     partial void OnShowNewChanged(bool value) => ApplyFilter();
     partial void OnShowExistingChanged(bool value) => ApplyFilter();
     partial void OnShowMissingChanged(bool value) => ApplyFilter();
+    partial void OnCleanFirstChanged(bool value) => UpdateWillRestore();
+    partial void OnSingleTransactionChanged(bool value) => UpdateWillRestore();
 
     partial void OnSelectedProfileChanged(ConnectionProfile? value)
     {
@@ -242,11 +251,11 @@ public partial class RestoreViewModel : ObservableObject
 
             NewCount = _allRows.Count(r => r.Status == DiffStatus.NewInBackup);
             ExistingCount = _allRows.Count(r => r.Status == DiffStatus.Existing);
-            MissingCount = _allRows.Count(r => r.Status == DiffStatus.MissingFromBackup);
 
             NewBreakdown = BuildBreakdown(DiffStatus.NewInBackup);
             ExistingBreakdown = BuildBreakdown(DiffStatus.Existing);
-            MissingBreakdown = BuildBreakdown(DiffStatus.MissingFromBackup);
+            // MissingCount / MissingBreakdown are schema-scoped and set by
+            // UpdateWillRestore() below, once BackupSchemas exists to scope against.
 
             BuildSchemaFilter();
             ApplyFilter();
@@ -266,9 +275,11 @@ public partial class RestoreViewModel : ObservableObject
     }
 
     // "12 tables · 250 fns · 3 views · 2 types · 5 seqs" — only non-zero kinds shown.
-    private string BuildBreakdown(DiffStatus status)
+    // schemaFilter, when given, restricts the breakdown to those schemas only.
+    private string BuildBreakdown(DiffStatus status, IReadOnlySet<string>? schemaFilter = null)
     {
-        var rows = _allRows.Where(r => r.Status == status).ToList();
+        var rows = _allRows.Where(r => r.Status == status
+            && (schemaFilter == null || schemaFilter.Contains(r.Schema))).ToList();
         if (rows.Count == 0) return "—";
 
         int Count(string kind) => rows.Count(r => r.Kind.Equals(kind, StringComparison.OrdinalIgnoreCase));
@@ -318,12 +329,47 @@ public partial class RestoreViewModel : ObservableObject
         UpdateWillRestore();
     }
 
-    // Full restore = every restorable object in the ticked schemas.
+    // Full restore = every restorable object in the ticked schemas. Also
+    // recomputes MISSING (scoped to just the ticked schemas — objects in
+    // unrelated target schemas are noise, not something this restore touches)
+    // and the CHANGES preview, since both depend on which schemas are ticked
+    // and on the Drop-existing / Single-transaction options.
     private void UpdateWillRestore()
     {
         var included = BackupSchemas.Where(s => s.IsChecked)
             .Select(s => s.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         WillRestoreCount = _allRows.Count(r => r.DumpId.HasValue && included.Contains(r.Schema));
+
+        MissingCount = _allRows.Count(r => r.Status == DiffStatus.MissingFromBackup && included.Contains(r.Schema));
+        MissingBreakdown = BuildBreakdown(DiffStatus.MissingFromBackup, included);
+
+        var existingInScope = _allRows.Count(r => r.DumpId.HasValue && r.Status == DiffStatus.Existing && included.Contains(r.Schema));
+        var newInScope = _allRows.Count(r => r.DumpId.HasValue && r.Status == DiffStatus.NewInBackup && included.Contains(r.Schema));
+
+        if (existingInScope > 0 && SingleTransaction && !CleanFirst)
+        {
+            // Matches the pre-flight guard in StartRestoreAsync: this exact
+            // combination is a guaranteed "already exists" failure that rolls
+            // back the whole transaction, so nothing actually changes.
+            ChangesCount = 0;
+            ChangesDetail = "blocked — tick 'Drop existing first' or use an empty DB";
+            ChangesBrush = Brushes.IndianRed;
+        }
+        else if (CleanFirst)
+        {
+            ChangesCount = newInScope + existingInScope;
+            ChangesDetail = $"{existingInScope} replaced, {newInScope} created";
+            ChangesBrush = Brushes.Goldenrod;
+        }
+        else
+        {
+            ChangesCount = newInScope;
+            ChangesDetail = existingInScope > 0
+                ? $"{newInScope} created · {existingInScope} already there, untouched"
+                : $"{newInScope} created (fresh target)";
+            ChangesBrush = Brushes.SeaGreen;
+        }
     }
 
     private void ApplyFilter()
@@ -337,9 +383,10 @@ public partial class RestoreViewModel : ObservableObject
         Rows.Clear();
         foreach (var r in _allRows)
         {
-            // Schema include filter only governs restorable (backup) objects.
-            // MISSING-from-backup rows are live-only and not affected by the chips.
-            if (hasSchemaFilter && r.DumpId.HasValue && !string.IsNullOrEmpty(r.Schema) && !included.Contains(r.Schema)) continue;
+            // Schema include filter applies to every row, MISSING-from-backup
+            // included: a schema you've unticked (or one that's not part of
+            // this backup at all) shouldn't clutter the view.
+            if (hasSchemaFilter && !string.IsNullOrEmpty(r.Schema) && !included.Contains(r.Schema)) continue;
 
             var statusOk = (r.Status == DiffStatus.NewInBackup && ShowNew)
                         || (r.Status == DiffStatus.Existing && ShowExisting)

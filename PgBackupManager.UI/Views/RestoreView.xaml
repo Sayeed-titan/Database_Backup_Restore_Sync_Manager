@@ -140,6 +140,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <ToggleButton Grid.Column="0" Style="{StaticResource KpiCard}" Tag="{StaticResource StatusGreen}" IsChecked="{Binding ShowNew}" Margin="0,0,6,0"
                                   ToolTip="In the backup file but NOT in the target DB — these will be created.">
@@ -158,19 +159,27 @@
                         </StackPanel>
                     </ToggleButton>
                     <ToggleButton Grid.Column="2" Style="{StaticResource KpiCard}" Tag="{StaticResource StatusRed}" IsChecked="{Binding ShowMissing}" Margin="3,0"
-                                  ToolTip="In the target DB but NOT in this backup — cannot be restored from here (informational).">
+                                  ToolTip="In the TICKED schemas of the target DB but NOT in this backup — cannot be restored from here (informational). Objects in schemas you haven't ticked are not counted.">
                         <StackPanel>
                             <TextBlock Text="MISSING FROM BACKUP" Style="{StaticResource FieldLabel}" Margin="0,0,0,7" />
                             <TextBlock Text="{Binding MissingCount}" FontSize="26" FontWeight="Bold" Foreground="{StaticResource StatusRed}" />
                             <TextBlock Text="{Binding MissingBreakdown}" FontSize="10" Foreground="{StaticResource Muted}" Margin="0,3,0,0" TextWrapping="Wrap" />
                         </StackPanel>
                     </ToggleButton>
-                    <Border Grid.Column="3" Style="{StaticResource Card}" CornerRadius="12" Padding="16,13" Margin="6,0,0,0"
-                            ToolTip="A full restore replays every object in the ticked schemas — plus all their data, indexes, constraints and sequence values.">
+                    <Border Grid.Column="3" Style="{StaticResource Card}" CornerRadius="12" Padding="16,13" Margin="3,0"
+                            ToolTip="A full restore replays every object in the ticked schemas — plus all their data, indexes, constraints and sequence values. This is the SIZE of the operation, not a guarantee it will succeed — see CHANGES TO TARGET for the real outcome.">
                         <StackPanel>
                             <TextBlock Text="WILL RESTORE" Style="{StaticResource FieldLabel}" Margin="0,0,0,7" />
                             <TextBlock Text="{Binding WillRestoreCount}" FontSize="26" FontWeight="Bold" Foreground="{StaticResource Teal}" />
                             <TextBlock Text="+ all data &amp; indexes" FontSize="10" Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="4" Style="{StaticResource Card}" CornerRadius="12" Padding="16,13" Margin="6,0,0,0"
+                            ToolTip="What will ACTUALLY happen to the target given the current 'Drop existing first' / 'Single transaction' options — the real outcome, not just the operation's size.">
+                        <StackPanel>
+                            <TextBlock Text="CHANGES TO TARGET" Style="{StaticResource FieldLabel}" Margin="0,0,0,7" />
+                            <TextBlock Text="{Binding ChangesCount}" FontSize="26" FontWeight="Bold" Foreground="{Binding ChangesBrush}" />
+                            <TextBlock Text="{Binding ChangesDetail}" FontSize="10" Foreground="{StaticResource Muted}" Margin="0,3,0,0" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                 </Grid>
