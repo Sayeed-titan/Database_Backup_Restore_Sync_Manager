@@ -4,6 +4,7 @@
         xmlns:views="clr-namespace:PgBackupManager.UI.Views"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="PgBackupManager"
+        Icon="Assets/app.ico"
         Height="900" Width="1040"
         MinHeight="640" MinWidth="900"
         WindowStartupLocation="CenterScreen"
