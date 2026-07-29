@@ -34,10 +34,20 @@ public sealed class PgDumpRunner
         if (job.Content == DumpContent.SchemaOnly) args.Add("--schema-only");
         if (job.Content == DumpContent.DataOnly) args.Add("--data-only");
 
-        foreach (var s in job.IncludeSchemas) args.Add($"--schema={s}");
-        foreach (var t in job.IncludeTables) args.Add($"--table={t}");
+        foreach (var s in job.IncludeSchemas) args.Add($"--schema=\"{s}\"");
+        foreach (var t in job.IncludeTables) args.Add($"--table={QuoteQualifiedName(t)}");
 
         var env = new Dictionary<string, string> { ["PGPASSWORD"] = plaintextPassword };
         return await Process.RunAsync(pgDumpExe, args, env, ct: ct);
+    }
+
+    // Splits on the LAST dot so a schema name that itself contains a dot
+    // (e.g. "singularity.membership") isn't misread as database.schema.
+    private static string QuoteQualifiedName(string fullName)
+    {
+        var idx = fullName.LastIndexOf('.');
+        return idx < 0
+            ? $"\"{fullName}\""
+            : $"\"{fullName[..idx]}\".\"{fullName[(idx + 1)..]}\"";
     }
 }

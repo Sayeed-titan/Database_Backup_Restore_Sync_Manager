@@ -34,9 +34,11 @@ WHERE t.typtype IN ('c','e','d')
   AND n.nspname NOT IN ('pg_catalog','information_schema')
   AND NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.reltype=t.oid AND c.relkind <> 'c')
 UNION ALL
-SELECT 'sequence', sequence_schema, sequence_name, NULL
-FROM information_schema.sequences
-WHERE sequence_schema NOT IN ('pg_catalog','information_schema')
+SELECT 'sequence', n.nspname, c.relname, NULL
+FROM pg_class c
+JOIN pg_namespace n ON c.relnamespace = n.oid
+WHERE c.relkind = 'S'
+  AND n.nspname NOT IN ('pg_catalog','information_schema')
 ORDER BY 1, 2 NULLS FIRST, 3 NULLS FIRST;
 ";
 

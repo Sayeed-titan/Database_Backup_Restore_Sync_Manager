@@ -26,13 +26,38 @@ public static class BackupInspector
             var m = LineRx.Match(line);
             if (!m.Success) continue;
             var rest = m.Groups[4].Value.Trim();
-            var tokens = rest.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length < 4) continue;
 
-            var owner = tokens[^1];
-            var name = tokens[^2];
-            var schema = tokens[^3];
-            var kind = string.Join(' ', tokens, 0, tokens.Length - 3);
+            var ownerIdx = rest.LastIndexOf(' ');
+            if (ownerIdx < 0) continue;
+            var owner = rest[(ownerIdx + 1)..];
+            var head = rest[..ownerIdx].TrimEnd();
+
+            // FUNCTION/PROCEDURE/AGGREGATE entries embed an argument signature
+            // directly after the name (e.g. "func(text, text)" or even
+            // "func(timestamp with time zone)"), and that signature can contain
+            // spaces of its own. Splitting the whole line on spaces shifts
+            // schema/name/kind off by however many extra words the signature
+            // has, and even in the simple case leaves "(args)" stuck onto the
+            // name — which then never matches the bare proname read back from
+            // the live database. Split at the signature's opening paren first.
+            var parenIdx = head.IndexOf('(');
+            string schema, name, kind;
+            if (parenIdx >= 0)
+            {
+                var beforeTokens = head[..parenIdx].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (beforeTokens.Length < 2) continue;
+                name = beforeTokens[^1];
+                schema = beforeTokens[^2];
+                kind = string.Join(' ', beforeTokens, 0, beforeTokens.Length - 2);
+            }
+            else
+            {
+                var tokens = head.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (tokens.Length < 3) continue;
+                name = tokens[^1];
+                schema = tokens[^2];
+                kind = string.Join(' ', tokens, 0, tokens.Length - 2);
+            }
 
             list.Add(new TocEntry(
                 int.Parse(m.Groups[1].Value),

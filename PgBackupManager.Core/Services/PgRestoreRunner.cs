@@ -64,7 +64,7 @@ public sealed class PgRestoreRunner
         else if (opts.IncludeSchemas is { Count: > 0 })
         {
             // Whole schema(s), in full. No --use-list, so data/indexes/constraints all come.
-            foreach (var s in opts.IncludeSchemas) args.Add($"--schema={s}");
+            foreach (var s in opts.IncludeSchemas) args.Add($"--schema=\"{s}\"");
         }
         else if (opts.SelectedToc != null && opts.AllToc != null && opts.SelectedToc.Count > 0)
         {
