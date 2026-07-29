@@ -442,6 +442,13 @@ public partial class BackupViewModel : ObservableObject
         _cts?.Cancel();
     }
 
+    [RelayCommand]
+    private void CopyLog()
+    {
+        if (LogLines.Count > 0)
+            Clipboard.SetText(string.Join(Environment.NewLine, LogLines));
+    }
+
     private void OnLogLine(object? sender, string line) => AppendLog(line);
 
     private void AppendLog(string line)

@@ -254,7 +254,18 @@
                 </Border>
 
                 <!-- Terminal -->
-                <Border Margin="0,12,0,4" CornerRadius="10" BorderBrush="{StaticResource TermBorder}" BorderThickness="1" ClipToBounds="True">
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="OUTPUT" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding CopyLogCommand}"
+                            Padding="10,3" FontSize="10">
+                        <TextBlock Text="COPY LOG" />
+                    </Button>
+                </Grid>
+                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{StaticResource TermBorder}" BorderThickness="1" ClipToBounds="True">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="5" />
@@ -290,7 +301,7 @@
                                 </Border.Style>
                             </Border>
                         </Grid>
-                        <ScrollViewer Grid.Row="1" Background="{StaticResource TermBg}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
+                        <ScrollViewer x:Name="LogScroll" Grid.Row="1" Background="{StaticResource TermBg}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
                             <ItemsControl ItemsSource="{Binding LogLines}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
