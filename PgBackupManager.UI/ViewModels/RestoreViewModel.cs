@@ -15,6 +15,8 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using PgBackupManager.Core.Models;
 using PgBackupManager.Core.Services;
+using PgBackupManager.UI.Services;
+using PgBackupManager.UI.Views;
 
 namespace PgBackupManager.UI.ViewModels;
 
@@ -543,15 +545,15 @@ public partial class RestoreViewModel : ObservableObject
         // Pre-flight: existing objects + single-transaction + no drop = guaranteed failure.
         if (existingInScope > 0 && SingleTransaction && !CleanFirst)
         {
-            MessageBox.Show(
+            ConfirmDialog.Alert(
+                Application.Current?.MainWindow,
+                "Restore would fail — target already has these objects",
                 $"{existingInScope} object(s) already exist in '{SelectedProfile.Database}'.\n\n" +
                 "A full restore re-creates every object, so pg_restore will hit \"already exists\" " +
                 "errors and — because 'Single transaction' is ON — roll back the ENTIRE restore.\n\n" +
                 "Do ONE of these first:\n" +
                 "   • Tick 'Drop existing first (--clean --if-exists)', or\n" +
-                "   • Restore into a fresh empty database (use 'Create Target DB' with a new name).",
-                "Restore would fail — target already has these objects",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+                "   • Restore into a fresh empty database (use 'Create Target DB' with a new name).");
             StatusText = $"{existingInScope} objects already exist — enable 'Drop existing first' or use an empty DB.";
             return;
         }
@@ -560,18 +562,21 @@ public partial class RestoreViewModel : ObservableObject
         // this is a hard Postgres constraint, not something we can work around.
         if (ParallelJobs > 1 && SingleTransaction)
         {
-            MessageBox.Show(
+            ConfirmDialog.Alert(
+                Application.Current?.MainWindow,
+                "Incompatible options",
                 $"Parallel jobs ({ParallelJobs}) can't be combined with 'Single transaction' — " +
                 "pg_restore itself refuses that combination.\n\n" +
                 "Either set Parallel jobs back to 1, or uncheck 'Single transaction' " +
-                "(you lose the all-or-nothing rollback safety net if you do).",
-                "Incompatible options", MessageBoxButton.OK, MessageBoxImage.Warning);
+                "(you lose the all-or-nothing rollback safety net if you do).");
             StatusText = "Parallel jobs requires 'Single transaction' to be off.";
             return;
         }
 
         // Safety confirmation — shows exactly WHERE this is going and that it is FULL.
-        var confirm = MessageBox.Show(
+        var confirmed = ConfirmDialog.Confirm(
+            Application.Current?.MainWindow,
+            isLocal ? "Confirm FULL restore" : "⚠ Confirm restore to REMOTE server",
             $"FULL restore of {ticked.Count} schema(s): {schemasInvolved}\n" +
             $"({objCount} objects + all their data, indexes, constraints & sequences)\n\n" +
             $"INTO target database:\n" +
@@ -580,10 +585,9 @@ public partial class RestoreViewModel : ObservableObject
             $"   {(isLocal ? "✓ LOCAL target — safe." : "⚠ REMOTE / network target!")}\n\n" +
             (CleanFirst ? "⚠ 'Drop existing first' is ON — existing objects will be DROPPED then recreated.\n\n" : "") +
             "Proceed?",
-            isLocal ? "Confirm FULL restore" : "⚠ CONFIRM RESTORE TO REMOTE SERVER",
-            MessageBoxButton.YesNo,
-            (CleanFirst || !isLocal) ? MessageBoxImage.Warning : MessageBoxImage.Question);
-        if (confirm != MessageBoxResult.Yes) { StatusText = "Restore cancelled."; return; }
+            confirmText: isLocal ? "Yes, restore" : "Yes, restore to remote",
+            danger: CleanFirst || !isLocal);
+        if (!confirmed) { StatusText = "Restore cancelled."; return; }
 
         var settings = _settingsStore.Load();
         var tools = PgToolsLocator.Locate(settings.PgBinDirOverride);
@@ -628,6 +632,24 @@ public partial class RestoreViewModel : ObservableObject
         {
             var pwd = SecretProtector.Unprotect(SelectedProfile.EncryptedPasswordBase64);
 
+            // pg_restore's --schema filter (used whenever this isn't a full-archive
+            // restore) never selects the CREATE SCHEMA statement itself — only objects
+            // belonging to that schema. Into a fresh target this schema wouldn't exist
+            // yet, so the very first CREATE TABLE would fail with "schema does not
+            // exist". Create any missing ones first — a no-op via IF NOT EXISTS when
+            // they're already there.
+            if (opts.IncludeSchemas is { Count: > 0 })
+            {
+                AppendLog(">> ensuring target schema(s) exist: " + string.Join(", ", opts.IncludeSchemas));
+                var (schemasOk, schemaMsg) = await DatabaseAdmin.EnsureSchemasExistAsync(SelectedProfile, pwd, opts.IncludeSchemas, _cts.Token);
+                if (!schemasOk)
+                {
+                    AppendLog($">> ERROR creating schema(s): {schemaMsg}");
+                    StatusText = $"Could not create target schema(s): {schemaMsg}";
+                    return;
+                }
+            }
+
             _stopwatch = Stopwatch.StartNew();
             _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _elapsedTimer.Tick += OnElapsedTick;
@@ -652,16 +674,33 @@ public partial class RestoreViewModel : ObservableObject
                 ProgressPercent = HasProgress ? 100 : 0;
                 EtaText = HasProgress ? "done" : "";
                 AppendLog($">> SUCCESS · took {ElapsedText}");
-                StatusText = $"Restore completed into '{opts.Database}' @ {opts.Host}. (took {ElapsedText})";
+                var doneMsg = $"Restore completed into '{opts.Database}' @ {opts.Host}. (took {ElapsedText})";
+                StatusText = doneMsg;
+
+                // Re-diff against the target we just restored into, so the KPI
+                // cards/table show what's REALLY there now, not stale pre-restore
+                // counts — this is what let the archivo_spellbound-style no-op
+                // "success" hide in plain sight before.
+                AppendLog(">> re-analyzing target...");
+                await AnalyzeAsync();
+                StatusText = $"{doneMsg} {StatusText}";
+
+                NotificationService.NotifyCompletion("Restore complete", doneMsg, success: true);
             }
             else
             {
                 AppendLog($">> pg_restore exited with code {exit}");
                 StatusText = $"pg_restore failed (exit {exit}). See log.";
+                NotificationService.NotifyCompletion("Restore failed", StatusText, success: false);
             }
         }
         catch (OperationCanceledException) { AppendLog(">> Cancelled."); StatusText = "Cancelled."; }
-        catch (Exception ex) { AppendLog($">> ERROR: {ex.Message}"); StatusText = $"ERROR: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            AppendLog($">> ERROR: {ex.Message}");
+            StatusText = $"ERROR: {ex.Message}";
+            NotificationService.NotifyCompletion("Restore error", StatusText, success: false);
+        }
         finally
         {
             _elapsedTimer?.Stop();

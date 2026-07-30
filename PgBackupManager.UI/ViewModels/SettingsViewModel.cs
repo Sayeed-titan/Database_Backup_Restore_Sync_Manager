@@ -17,6 +17,10 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _useAutoFolders = true;
     [ObservableProperty] private int _retentionDays = 30;
 
+    [ObservableProperty] private bool _notifyOnCompletion = true;
+    [ObservableProperty] private int _notificationDurationSeconds = 6;
+    [ObservableProperty] private bool _flashTaskbarOnCompletion = true;
+
     [ObservableProperty] private string _detectedPgVersion = "";
     [ObservableProperty] private string _detectedPgDump = "";
     [ObservableProperty] private string _detectedPgRestore = "";
@@ -34,6 +38,9 @@ public partial class SettingsViewModel : ObservableObject
         DefaultRestoreSource = s.DefaultRestoreSource;
         UseAutoFolders = s.UseAutoFolders;
         RetentionDays = s.RetentionDays;
+        NotifyOnCompletion = s.NotifyOnCompletion;
+        NotificationDurationSeconds = s.NotificationDurationSeconds;
+        FlashTaskbarOnCompletion = s.FlashTaskbarOnCompletion;
         SettingsFilePath = _store.FilePath;
         DetectTools();
         PreviewRetention();
@@ -96,6 +103,9 @@ public partial class SettingsViewModel : ObservableObject
             DefaultRestoreSource = DefaultRestoreSource.Trim(),
             UseAutoFolders = UseAutoFolders,
             RetentionDays = RetentionDays,
+            NotifyOnCompletion = NotifyOnCompletion,
+            NotificationDurationSeconds = NotificationDurationSeconds,
+            FlashTaskbarOnCompletion = FlashTaskbarOnCompletion,
         });
         StatusText = $"Saved to {_store.FilePath}";
     }

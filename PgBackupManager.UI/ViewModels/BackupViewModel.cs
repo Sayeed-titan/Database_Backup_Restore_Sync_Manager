@@ -14,6 +14,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using PgBackupManager.Core.Models;
 using PgBackupManager.Core.Services;
+using PgBackupManager.UI.Services;
 
 namespace PgBackupManager.UI.ViewModels;
 
@@ -511,11 +512,13 @@ public partial class BackupViewModel : ObservableObject
                 StatusText = runSeparate
                     ? $"Backup OK: {outputPaths.Count} files (one per schema) (took {ElapsedText})"
                     : $"Backup OK: {Path.GetFileName(job.FullOutputPath)} (took {ElapsedText})";
+                NotificationService.NotifyCompletion("Backup complete", StatusText, success: true);
             }
             else
             {
                 AppendLog($">> pg_dump exited with code {exitCode}");
                 StatusText = $"pg_dump failed (exit {exitCode}). See log.";
+                NotificationService.NotifyCompletion("Backup failed", StatusText, success: false);
             }
         }
         catch (OperationCanceledException)
@@ -527,6 +530,7 @@ public partial class BackupViewModel : ObservableObject
         {
             AppendLog($">> ERROR: {ex.Message}");
             StatusText = $"ERROR: {ex.Message}";
+            NotificationService.NotifyCompletion("Backup error", StatusText, success: false);
         }
         finally
         {

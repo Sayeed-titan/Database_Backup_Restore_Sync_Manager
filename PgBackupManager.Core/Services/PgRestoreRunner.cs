@@ -71,7 +71,19 @@ public sealed class PgRestoreRunner
         else if (opts.IncludeSchemas is { Count: > 0 })
         {
             // Whole schema(s), in full. No --use-list, so data/indexes/constraints all come.
-            foreach (var s in opts.IncludeSchemas) args.Add($"--schema=\"{s}\"");
+            //
+            // UNQUOTED, deliberately — unlike pg_dump's --schema (which pattern-matches
+            // against the live catalog and correctly un-quotes a "quoted identifier"),
+            // pg_restore's --schema does a plain literal string compare against the
+            // namespace recorded in the archive's TOC. Wrapping the name in embedded
+            // double quotes here makes it compare "\"name\"" against the TOC's bare
+            // "name" — that never matches, so 0 entries get selected, pg_restore prints
+            // "implied data-only restore", and the run "succeeds" in seconds having
+            // restored nothing. Confirmed empirically with pg_restore --list against a
+            // real archive: quoted = 0 matches, unquoted = full match (even for a schema
+            // whose name itself contains a dot, e.g. "singularity.membership" — pg_restore
+            // does not split --schema on dots the way pg_dump's pattern parser does).
+            foreach (var s in opts.IncludeSchemas) args.Add($"--schema={s}");
         }
         else if (opts.SelectedToc != null && opts.AllToc != null && opts.SelectedToc.Count > 0)
         {

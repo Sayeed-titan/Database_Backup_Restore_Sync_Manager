@@ -84,6 +84,22 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Notifications -->
+                <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Notifications" Style="{StaticResource CardTitle}" Margin="0,0,0,14" />
+                        <CheckBox Style="{StaticResource DesignCheck}" Content="Show a notification when a backup/restore finishes"
+                                  IsChecked="{Binding NotifyOnCompletion}" Margin="0,0,0,12" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <TextBlock Text="Auto-dismiss after" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding NotificationDurationSeconds, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="seconds" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                        <CheckBox Style="{StaticResource DesignCheck}" Content="Flash the taskbar icon on completion (useful when minimized)"
+                                  IsChecked="{Binding FlashTaskbarOnCompletion}" />
+                    </StackPanel>
+                </Border>
+
                 <!-- Retention -->
                 <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,16">
                     <StackPanel>

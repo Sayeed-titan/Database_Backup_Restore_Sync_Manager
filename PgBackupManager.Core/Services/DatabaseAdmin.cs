@@ -47,6 +47,36 @@ public static class DatabaseAdmin
         }
     }
 
+    /// <summary>
+    /// Creates any of the given schemas that don't already exist in the profile's
+    /// target database. pg_restore's --schema filter only selects objects BELONGING
+    /// TO the named schema — never the CREATE SCHEMA statement itself (confirmed via
+    /// pg_restore --list: a --schema filter never returns a SCHEMA-type TOC entry,
+    /// regardless of name). A schema-scoped restore into a fresh target would
+    /// otherwise fail on its very first CREATE TABLE with "schema does not exist",
+    /// so this must run before pg_restore whenever schemas are being filtered.
+    /// </summary>
+    public static async Task<(bool Ok, string Message)> EnsureSchemasExistAsync(
+        ConnectionProfile profile, string plaintextPassword, IEnumerable<string> schemas, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var conn = new NpgsqlConnection(profile.BuildConnectionString(plaintextPassword));
+            await conn.OpenAsync(ct);
+            foreach (var schema in schemas)
+            {
+                var safeName = schema.Replace("\"", "\"\"");
+                await using var cmd = new NpgsqlCommand($"CREATE SCHEMA IF NOT EXISTS \"{safeName}\"", conn);
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+            return (true, "");
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
     /// <summary>Lists database names available on the host (via the maintenance DB).</summary>
     public static async Task<IReadOnlyList<string>> ListDatabasesAsync(
         ConnectionProfile profile, string plaintextPassword, CancellationToken ct = default)
