@@ -30,6 +30,12 @@ public sealed class BackupJob
     // format lays tables out as separate files workers can write concurrently.
     public int Jobs { get; set; } = 1;
 
+    // When Scope == SpecificSchemas and more than one schema is ticked, dump
+    // each schema with its own pg_dump run into its own file instead of
+    // combining them into one archive — all files still land in the same
+    // destination folder (same day-folder, same timestamp).
+    public bool SeparateFilePerSchema { get; set; }
+
     public string FullOutputPath { get; set; } = "";
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 

@@ -163,16 +163,28 @@ public partial class RestoreViewModel : ObservableObject
     partial void OnSelectedProfileChanged(ConnectionProfile? value)
     {
         UpdateTargetDisplay();
-        // A diff is only valid against the DB it was computed on. Switching the
-        // target invalidates it — clear so nobody restores using a stale comparison.
+        InvalidateAnalysis();
+        if (value != null)
+            StatusText = $"Target set to '{value.Name}'. Click Analyze to compare the backup against it.";
+    }
+
+    // A diff (and the schema tick list it drives) is only valid for the exact
+    // file it was computed from. Changing the file — including via the
+    // "Use latest" shortcut, which can grab a DIFFERENT project's newer backup
+    // if the Default Restore Source folder is shared — must not leave a stale
+    // schema selection sitting there for Start Restore to blindly reuse
+    // against the new file.
+    partial void OnBackupFileChanged(string value) => InvalidateAnalysis();
+
+    private void InvalidateAnalysis()
+    {
         _allRows = new();
         _allToc = Array.Empty<TocEntry>();
         Rows.Clear();
         BackupSchemas.Clear();
         NewCount = ExistingCount = MissingCount = SelectedCount = WillRestoreCount = 0;
+        ChangesCount = 0; ChangesDetail = ""; ChangesBrush = Brushes.Gray;
         NewBreakdown = ExistingBreakdown = MissingBreakdown = "";
-        if (value != null)
-            StatusText = $"Target set to '{value.Name}'. Click Analyze to compare the backup against it.";
     }
 
     private void UpdateTargetDisplay()

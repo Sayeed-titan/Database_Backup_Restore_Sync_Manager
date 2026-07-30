@@ -90,7 +90,7 @@
                         <TextBlock Text="Retention Policy" Style="{StaticResource CardTitle}" Margin="0,0,0,14" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                             <TextBlock Text="Delete backups older than" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                            <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding RetentionDays, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding RetentionDays, UpdateSourceTrigger=LostFocus}" />
                             <TextBlock Text="days" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="8,0,0,0" />
                         </StackPanel>
                         <TextBlock Margin="0,0,0,12">

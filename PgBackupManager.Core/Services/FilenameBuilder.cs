@@ -16,9 +16,12 @@ public static class FilenameBuilder
             now.Day.ToString("00"));
     }
 
-    public static string BuildFileName(BackupJob job, DateTime now)
+    // schemaOverride names the single schema this file is for — used when a
+    // multi-schema backup is split into one file per schema, so each gets its
+    // own name (e.g. "dcci_hrm_...") instead of all sharing "dcci_schemas_...".
+    public static string BuildFileName(BackupJob job, DateTime now, string? schemaOverride = null)
     {
-        var scope = job.Scope switch
+        var scope = schemaOverride ?? job.Scope switch
         {
             BackupScope.FullDatabase => "full",
             BackupScope.SpecificSchemas => "schemas",
@@ -36,10 +39,10 @@ public static class FilenameBuilder
         return $"{job.Database}_{scope}{content}_{stamp}{ext}";
     }
 
-    public static string BuildFullPath(BackupJob job, DateTime now)
+    public static string BuildFullPath(BackupJob job, DateTime now, string? schemaOverride = null)
     {
         var folder = BuildFolder(job.DestinationRoot, job.Database, job.UseAutoFolders, now);
-        var name = BuildFileName(job, now);
+        var name = BuildFileName(job, now, schemaOverride);
         return Path.Combine(folder, name);
     }
 }

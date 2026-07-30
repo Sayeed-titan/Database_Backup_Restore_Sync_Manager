@@ -140,6 +140,11 @@ public partial class BackupViewModel : ObservableObject
     // pre-flight check in StartBackupAsync, not silently overridden here.
     [ObservableProperty] private int _parallelJobs = 1;
 
+    // When Scope == "Selected schemas" and more than one is ticked, run one
+    // pg_dump per schema (its own file) instead of combining them into a
+    // single archive — all files still land in the same destination folder.
+    [ObservableProperty] private bool _separateFilePerSchema;
+
     public List<string> Formats { get; } = new() { "Custom (.dump)", "Plain SQL (.sql)", "Tar (.tar)", "Directory (parallel)" };
     [ObservableProperty] private string _selectedFormat = "Custom (.dump)";
 
@@ -182,6 +187,7 @@ public partial class BackupViewModel : ObservableObject
     partial void OnSelectedContentChanged(string value) => UpdateFilenamePreview();
     partial void OnDestinationRootChanged(string value) => UpdateFilenamePreview();
     partial void OnUseAutoFoldersChanged(bool value) => UpdateFilenamePreview();
+    partial void OnSeparateFilePerSchemaChanged(bool value) => UpdateFilenamePreview();
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
     private void UpdateFilenamePreview()
@@ -189,6 +195,17 @@ public partial class BackupViewModel : ObservableObject
         if (SelectedProfile is null) { FilenamePreview = ""; FullPathPreview = ""; return; }
         var job = BuildJob();
         var now = DateTime.Now;
+
+        var tickedSchemas = _allSchemas.Where(s => s.IsChecked).Select(s => s.Name).ToList();
+        if (job.SeparateFilePerSchema && job.Scope == BackupScope.SpecificSchemas && tickedSchemas.Count > 1)
+        {
+            var folder = FilenameBuilder.BuildFolder(job.DestinationRoot, job.Database, job.UseAutoFolders, now);
+            var ext = string.IsNullOrEmpty(job.Extension) ? "" : "." + job.Extension;
+            FilenamePreview = $"{tickedSchemas.Count} separate files";
+            FullPathPreview = $@"{folder}\{job.Database}_<schema>_{now:yyyyMMdd_HHmmss}{ext}  ×{tickedSchemas.Count}";
+            return;
+        }
+
         FilenamePreview = FilenameBuilder.BuildFileName(job, now);
         FullPathPreview = FilenameBuilder.BuildFullPath(job, now);
     }
@@ -221,6 +238,7 @@ public partial class BackupViewModel : ObservableObject
         DestinationRoot = DestinationRoot,
         UseAutoFolders = UseAutoFolders,
         Jobs = ParallelJobs,
+        SeparateFilePerSchema = SeparateFilePerSchema,
     };
 
     private void ApplyFilter()
@@ -268,6 +286,7 @@ public partial class BackupViewModel : ObservableObject
         UpdateSelectedSummary();
         // Ticking a schema means "back up whole schemas".
         if (sender is SchemaNode { IsChecked: true }) SelectedScope = "Selected schemas";
+        UpdateFilenamePreview();
     }
 
     // A manual single-table tick (not part of a schema cascade) means
@@ -421,17 +440,33 @@ public partial class BackupViewModel : ObservableObject
         }
 
         var now = DateTime.Now;
-        job.FullOutputPath = FilenameBuilder.BuildFullPath(job, now);
+
+        // Only meaningful for a multi-schema dump — one schema ticked behaves
+        // exactly like today (single combined file), no need to branch for it.
+        var runSeparate = job.SeparateFilePerSchema && job.Scope == BackupScope.SpecificSchemas && job.IncludeSchemas.Count > 1;
 
         LogLines.Clear();
-        AppendLog($">> pg_dump → {job.FullOutputPath}");
-        AppendLog($">> args: --host={job.Host} --port={job.Port} --dbname={job.Database} --format={job.FormatChar} content={job.Content} scope={job.Scope}");
+        if (runSeparate)
+        {
+            var folder = FilenameBuilder.BuildFolder(job.DestinationRoot, job.Database, job.UseAutoFolders, now);
+            AppendLog($">> pg_dump × {job.IncludeSchemas.Count} (one file per schema) → {folder}");
+            AppendLog($">> args: --host={job.Host} --port={job.Port} --dbname={job.Database} --format={job.FormatChar} content={job.Content}");
+        }
+        else
+        {
+            job.FullOutputPath = FilenameBuilder.BuildFullPath(job, now);
+            AppendLog($">> pg_dump → {job.FullOutputPath}");
+            AppendLog($">> args: --host={job.Host} --port={job.Port} --dbname={job.Database} --format={job.FormatChar} content={job.Content} scope={job.Scope}");
+        }
 
         _cts = new CancellationTokenSource();
         IsBusy = true; CanCancel = true;
         StatusText = "Running pg_dump...";
 
         // Reset progress state from any previous run before this one starts.
+        // Not reset again between per-schema sub-runs below — bytes are keyed
+        // "schema.table" (see TableSizeEstimator), so totals accumulate safely
+        // across every sub-run into one running percentage for the whole job.
         _tableBytes = new Dictionary<string, long>();
         _totalBytes = 0; _doneBytes = 0; _tablesCredited.Clear();
         ProgressPercent = 0; HasProgress = false; ElapsedText = "00:00"; EtaText = "";
@@ -442,6 +477,8 @@ public partial class BackupViewModel : ObservableObject
 
             // Best-effort size estimate for the ETA — if this fails (network hiccup,
             // no privilege, whatever) the backup still proceeds, just without an ETA.
+            // One query covers every schema in scope regardless of runSeparate, since
+            // job.IncludeSchemas already lists all of them.
             try
             {
                 var connStr = SelectedProfile.BuildConnectionString(pwd);
@@ -457,16 +494,9 @@ public partial class BackupViewModel : ObservableObject
             _elapsedTimer.Tick += OnElapsedTick;
             _elapsedTimer.Start();
 
-            var runner = new PgDumpRunner();
-            runner.Process.StdoutLine += OnLogLine;
-            runner.Process.StderrLine += OnLogLine;
-            runner.Process.StderrLine += OnDumpProgressLine;
-
-            var exitCode = await runner.RunAsync(tools.PgDump!, job, pwd, _cts.Token);
-
-            runner.Process.StdoutLine -= OnLogLine;
-            runner.Process.StderrLine -= OnLogLine;
-            runner.Process.StderrLine -= OnDumpProgressLine;
+            var (exitCode, outputPaths) = runSeparate
+                ? await RunSeparateSchemaDumpsAsync(job, tools.PgDump!, pwd, now, _cts.Token)
+                : (await RunOnePgDumpAsync(job, tools.PgDump!, pwd, _cts.Token), new List<string> { job.FullOutputPath });
 
             _elapsedTimer.Stop();
             ElapsedText = FormatDuration(_stopwatch.Elapsed);
@@ -476,13 +506,11 @@ public partial class BackupViewModel : ObservableObject
                 _doneBytes = _totalBytes;
                 ProgressPercent = HasProgress ? 100 : 0;
                 EtaText = HasProgress ? "done" : "";
-                // Directory format writes a folder (one file per table plus a
-                // TOC), not a single file — FileInfo can't size that.
-                var size = job.Format == BackupFormat.Directory
-                    ? new DirectoryInfo(job.FullOutputPath).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length)
-                    : new FileInfo(job.FullOutputPath).Length;
-                AppendLog($">> SUCCESS · size {size / 1024.0:F1} KB · took {ElapsedText}");
-                StatusText = $"Backup OK: {Path.GetFileName(job.FullOutputPath)} (took {ElapsedText})";
+                var size = outputPaths.Sum(p => SizeOfOutput(p, job.Format));
+                AppendLog($">> SUCCESS · {outputPaths.Count} file(s) · size {size / 1024.0:F1} KB · took {ElapsedText}");
+                StatusText = runSeparate
+                    ? $"Backup OK: {outputPaths.Count} files (one per schema) (took {ElapsedText})"
+                    : $"Backup OK: {Path.GetFileName(job.FullOutputPath)} (took {ElapsedText})";
             }
             else
             {
@@ -507,6 +535,69 @@ public partial class BackupViewModel : ObservableObject
             _cts?.Dispose(); _cts = null;
         }
     }
+
+    private async Task<int> RunOnePgDumpAsync(BackupJob job, string pgDumpExe, string pwd, CancellationToken ct)
+    {
+        var runner = new PgDumpRunner();
+        runner.Process.StdoutLine += OnLogLine;
+        runner.Process.StderrLine += OnLogLine;
+        runner.Process.StderrLine += OnDumpProgressLine;
+        try
+        {
+            return await runner.RunAsync(pgDumpExe, job, pwd, ct);
+        }
+        finally
+        {
+            runner.Process.StdoutLine -= OnLogLine;
+            runner.Process.StderrLine -= OnLogLine;
+            runner.Process.StderrLine -= OnDumpProgressLine;
+        }
+    }
+
+    // Runs one pg_dump per ticked schema, each producing its own file in the
+    // same destination folder (same day-folder, same timestamp). Stops at the
+    // first failure so a broken schema doesn't get lost in a "SUCCESS" line —
+    // whatever files were already produced by earlier schemas stay on disk.
+    private async Task<(int ExitCode, List<string> OutputPaths)> RunSeparateSchemaDumpsAsync(
+        BackupJob job, string pgDumpExe, string pwd, DateTime now, CancellationToken ct)
+    {
+        var outputs = new List<string>();
+        for (int i = 0; i < job.IncludeSchemas.Count; i++)
+        {
+            var schema = job.IncludeSchemas[i];
+            var subJob = new BackupJob
+            {
+                Host = job.Host,
+                Port = job.Port,
+                Database = job.Database,
+                Username = job.Username,
+                Format = job.Format,
+                Scope = BackupScope.SpecificSchemas,
+                Content = job.Content,
+                IncludeSchemas = new List<string> { schema },
+                DestinationRoot = job.DestinationRoot,
+                UseAutoFolders = job.UseAutoFolders,
+                Jobs = job.Jobs,
+                FullOutputPath = FilenameBuilder.BuildFullPath(job, now, schema),
+            };
+
+            AppendLog($">> [{i + 1}/{job.IncludeSchemas.Count}] schema '{schema}' → {subJob.FullOutputPath}");
+            var exit = await RunOnePgDumpAsync(subJob, pgDumpExe, pwd, ct);
+            outputs.Add(subJob.FullOutputPath);
+            if (exit != 0)
+            {
+                AppendLog($">> schema '{schema}' FAILED (exit {exit}) — stopping, {i} of {job.IncludeSchemas.Count} completed.");
+                return (exit, outputs);
+            }
+        }
+        return (0, outputs);
+    }
+
+    // Directory format writes a folder (one file per table plus a TOC), not a
+    // single file — FileInfo can't size that.
+    private static long SizeOfOutput(string path, BackupFormat format) => format == BackupFormat.Directory
+        ? new DirectoryInfo(path).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length)
+        : new FileInfo(path).Length;
 
     [RelayCommand]
     private void Cancel()

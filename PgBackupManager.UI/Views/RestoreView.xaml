@@ -116,7 +116,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
                                 ToolTip="pg_restore --jobs=N — runs N workers in parallel for faster restores. Postgres refuses this together with 'Single transaction', so untick that first.">
                         <TextBlock Text="Parallel jobs" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBox Style="{StaticResource InputBox}" Width="46" TextAlignment="Center" Text="{Binding ParallelJobs, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding ParallelJobs, UpdateSourceTrigger=LostFocus}" />
                     </StackPanel>
                 </WrapPanel>
 

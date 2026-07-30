@@ -62,7 +62,7 @@
                     <StackPanel Grid.Column="3" Margin="7,0,0,0"
                                 ToolTip="pg_dump --jobs=N — only works with 'Directory (parallel)' format; ignored/blocked otherwise.">
                         <TextBlock Text="JOBS" Style="{StaticResource FieldLabel}" />
-                        <TextBox Style="{StaticResource InputBox}" Width="50" TextAlignment="Center" Text="{Binding ParallelJobs, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding ParallelJobs, UpdateSourceTrigger=LostFocus}" />
                     </StackPanel>
                 </Grid>
 
@@ -223,6 +223,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,10,0">
                         <TextBlock Text="DESTINATION ROOT" Style="{StaticResource FieldLabel}" />
@@ -237,7 +238,10 @@
                         </StackPanel>
                     </Button>
                     <CheckBox Grid.Column="2" Style="{StaticResource DesignCheck}" Content="Auto Y/M/D folders"
-                              IsChecked="{Binding UseAutoFolders}" VerticalAlignment="Bottom" Height="38" />
+                              IsChecked="{Binding UseAutoFolders}" VerticalAlignment="Bottom" Height="38" Margin="0,0,14,0" />
+                    <CheckBox Grid.Column="3" Style="{StaticResource DesignCheck}" Content="One file per schema"
+                              IsChecked="{Binding SeparateFilePerSchema}" VerticalAlignment="Bottom" Height="38"
+                              ToolTip="Only applies when Scope = 'Selected schemas' and more than one schema is ticked — runs one pg_dump per schema, all landing in the same destination folder instead of one combined dump." />
                 </Grid>
                 <TextBlock Text="{Binding FullPathPreview}" FontFamily="{StaticResource FontMono}" FontSize="11"
                            Foreground="{StaticResource Muted}" Margin="2,7,0,0" TextTrimming="CharacterEllipsis" />
