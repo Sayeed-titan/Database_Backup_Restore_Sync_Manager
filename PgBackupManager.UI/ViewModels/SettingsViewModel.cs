@@ -4,6 +4,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using PgBackupManager.Core.Services;
+using PgBackupManager.UI.Services;
+using PgBackupManager.UI.Views;
 
 namespace PgBackupManager.UI.ViewModels;
 
@@ -108,6 +110,22 @@ public partial class SettingsViewModel : ObservableObject
             FlashTaskbarOnCompletion = FlashTaskbarOnCompletion,
         });
         StatusText = $"Saved to {_store.FilePath}";
+    }
+
+    // Previews the CURRENT (possibly unsaved) toggle/duration values directly,
+    // rather than going through NotificationService (which reloads whatever
+    // was last saved to disk) — so you can check how it'll look before saving.
+    [RelayCommand]
+    private void TestNotification()
+    {
+        if (NotifyOnCompletion)
+            ToastWindow.Show("Test notification", "This is what a backup/restore completion looks like.", true, NotificationDurationSeconds);
+        if (FlashTaskbarOnCompletion)
+            NotificationService.FlashTaskbar();
+
+        StatusText = (NotifyOnCompletion || FlashTaskbarOnCompletion)
+            ? "Sent test notification — minimize the window to check it shows up while minimized too."
+            : "Both notification options are off — nothing to test. Tick one above first.";
     }
 
     [RelayCommand]

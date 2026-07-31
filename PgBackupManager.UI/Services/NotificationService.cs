@@ -27,7 +27,7 @@ public static class NotificationService
         });
     }
 
-    private static void FlashTaskbar()
+    public static void FlashTaskbar()
     {
         var window = Application.Current?.MainWindow;
         if (window is null) return;

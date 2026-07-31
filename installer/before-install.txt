@@ -1,0 +1,13 @@
+PgBackupManager needs PostgreSQL's command-line tools to actually run
+backups and restores:
+
+    pg_dump.exe, pg_restore.exe, psql.exe
+
+This installer does NOT include them. If this machine already has
+PostgreSQL (or just the client tools) installed, PgBackupManager will
+usually find them on its own. If not, install PostgreSQL (or the
+"command line tools" component of it) first, then open:
+
+    Settings tab -> PostgreSQL Client Tools -> Bin Folder Override
+
+and point it at the folder containing pg_dump.exe.

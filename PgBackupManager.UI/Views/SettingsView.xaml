@@ -96,7 +96,9 @@
                             <TextBlock Text="seconds" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="8,0,0,0" />
                         </StackPanel>
                         <CheckBox Style="{StaticResource DesignCheck}" Content="Flash the taskbar icon on completion (useful when minimized)"
-                                  IsChecked="{Binding FlashTaskbarOnCompletion}" />
+                                  IsChecked="{Binding FlashTaskbarOnCompletion}" Margin="0,0,0,14" />
+                        <Button Style="{StaticResource GhostButton}" Command="{Binding TestNotificationCommand}"
+                                Content="SEND TEST NOTIFICATION" HorizontalAlignment="Left" Padding="14,8" />
                     </StackPanel>
                 </Border>
 
