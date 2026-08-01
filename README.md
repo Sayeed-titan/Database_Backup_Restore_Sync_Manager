@@ -50,9 +50,13 @@ backups work — it makes the process visible and hard to get wrong:
 
 ### Option A — Installer (recommended)
 
-Run `PgBackupManager-Setup-<version>.exe` and follow the wizard. It installs
-the app with a Start Menu shortcut and an uninstaller — nothing else on the
-machine is required to *run* PgBackupManager itself.
+Download **[`installer/dist/PgBackupManager-Setup-2.0.exe`](installer/dist/PgBackupManager-Setup-2.0.exe)**
+from this repo and run it. It installs the app with a Start Menu shortcut
+and an uninstaller — nothing else on the machine is required to *run*
+PgBackupManager itself (the .NET runtime is bundled inside the installer).
+
+If you're browsing on GitHub: open that path, click **View raw** (or the
+download icon), and save the `.exe`.
 
 **One real prerequisite:** PgBackupManager calls PostgreSQL's own
 command-line tools (`pg_dump.exe`, `pg_restore.exe`, `psql.exe`) — it does not
