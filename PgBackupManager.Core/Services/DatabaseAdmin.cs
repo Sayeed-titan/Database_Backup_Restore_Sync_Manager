@@ -77,6 +77,34 @@ public static class DatabaseAdmin
         }
     }
 
+    /// <summary>
+    /// Returns the target server's major version (e.g. 15 for "15.15"), or null
+    /// if it couldn't be determined. Used to catch a client-tools/server version
+    /// mismatch BEFORE running pg_dump/pg_restore — a client newer than the
+    /// server can unconditionally send session-setup GUCs the server has never
+    /// heard of (e.g. PG17+ tools sending "SET transaction_timeout = 0" against
+    /// a PG15 server), which fails loudly but only after the run has already
+    /// started. See project_singularity_membership_schema memory / the
+    /// 2026-07-31 transaction_timeout incident for how this was diagnosed.
+    /// </summary>
+    public static async Task<int?> GetServerMajorVersionAsync(
+        ConnectionProfile profile, string plaintextPassword, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var conn = new NpgsqlConnection(profile.BuildConnectionString(plaintextPassword));
+            await conn.OpenAsync(ct);
+            await using var cmd = new NpgsqlCommand("SHOW server_version_num", conn);
+            var raw = (string?)await cmd.ExecuteScalarAsync(ct);
+            // server_version_num is MAJOR*10000 + MINOR, e.g. 150015 -> 15, 180004 -> 18.
+            return int.TryParse(raw, out var n) ? n / 10000 : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>Lists database names available on the host (via the maintenance DB).</summary>
     public static async Task<IReadOnlyList<string>> ListDatabasesAsync(
         ConnectionProfile profile, string plaintextPassword, CancellationToken ct = default)

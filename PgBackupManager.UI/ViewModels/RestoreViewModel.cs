@@ -542,6 +542,12 @@ public partial class RestoreViewModel : ObservableObject
 
         var isLocal = SelectedProfile.Host.Trim().ToLowerInvariant() is "localhost" or "127.0.0.1" or "::1" or ".";
 
+        var settings = _settingsStore.Load();
+        var tools = PgToolsLocator.Locate(settings.PgBinDirOverride);
+        if (string.IsNullOrEmpty(tools.PgRestore)) { StatusText = "pg_restore.exe not found. Configure it in Settings."; return; }
+
+        var pwd = SecretProtector.Unprotect(SelectedProfile.EncryptedPasswordBase64);
+
         // Pre-flight: existing objects + single-transaction + no drop = guaranteed failure.
         if (existingInScope > 0 && SingleTransaction && !CleanFirst)
         {
@@ -573,6 +579,29 @@ public partial class RestoreViewModel : ObservableObject
             return;
         }
 
+        // Pre-flight: client tools newer than the target server can send
+        // session-setup GUCs the server has never heard of — e.g. PostgreSQL 17+
+        // pg_restore unconditionally sends "SET transaction_timeout = 0" during
+        // its own connection init, which a PostgreSQL 15 server rejects outright
+        // before a single object is touched. Caught here, before even asking
+        // for confirmation, instead of failing two seconds into the real run.
+        if (tools.MajorVersion.HasValue)
+        {
+            var serverMajor = await DatabaseAdmin.GetServerMajorVersionAsync(SelectedProfile, pwd);
+            if (serverMajor.HasValue && tools.MajorVersion.Value > serverMajor.Value)
+            {
+                ConfirmDialog.Alert(
+                    Application.Current?.MainWindow,
+                    "Client tools are newer than the target server",
+                    $"pg_restore {tools.Version} is newer than the target server (PostgreSQL {serverMajor}.x).\n\n" +
+                    "Newer client tools can send session settings the server doesn't recognize " +
+                    "(e.g. \"transaction_timeout\", added in PostgreSQL 17) and the restore fails immediately.\n\n" +
+                    $"Fix: Settings → PostgreSQL Client Tools → Bin Folder Override → point at a PostgreSQL {serverMajor}.x install.");
+                StatusText = $"Blocked — pg_restore {tools.Version} is newer than the server (PostgreSQL {serverMajor}.x).";
+                return;
+            }
+        }
+
         // Safety confirmation — shows exactly WHERE this is going and that it is FULL.
         var confirmed = ConfirmDialog.Confirm(
             Application.Current?.MainWindow,
@@ -588,10 +617,6 @@ public partial class RestoreViewModel : ObservableObject
             confirmText: isLocal ? "Yes, restore" : "Yes, restore to remote",
             danger: CleanFirst || !isLocal);
         if (!confirmed) { StatusText = "Restore cancelled."; return; }
-
-        var settings = _settingsStore.Load();
-        var tools = PgToolsLocator.Locate(settings.PgBinDirOverride);
-        if (string.IsNullOrEmpty(tools.PgRestore)) { StatusText = "pg_restore.exe not found. Configure it in Settings."; return; }
 
         var opts = new RestoreOptions
         {
@@ -630,8 +655,6 @@ public partial class RestoreViewModel : ObservableObject
 
         try
         {
-            var pwd = SecretProtector.Unprotect(SelectedProfile.EncryptedPasswordBase64);
-
             // pg_restore's --schema filter (used whenever this isn't a full-archive
             // restore) never selects the CREATE SCHEMA statement itself — only objects
             // belonging to that schema. Into a fresh target this schema wouldn't exist

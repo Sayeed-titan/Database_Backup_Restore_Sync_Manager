@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace PgBackupManager.Core.Services;
 
@@ -16,6 +18,10 @@ public sealed record PgToolPaths
     public bool IsComplete => !string.IsNullOrEmpty(PgDump)
         && !string.IsNullOrEmpty(PgRestore)
         && !string.IsNullOrEmpty(Psql);
+
+    // First path segment of Version ("15.18" -> 15), used to compare against
+    // a target server's major version. Null if Version couldn't be detected.
+    public int? MajorVersion => int.TryParse((Version ?? "").Split('.')[0], out var v) ? v : null;
 }
 
 public static class PgToolsLocator
@@ -31,7 +37,7 @@ public static class PgToolsLocator
         if (!string.IsNullOrWhiteSpace(manualBinDir) && Directory.Exists(manualBinDir))
         {
             var paths = BuildFromBin(manualBinDir);
-            if (paths.IsComplete) return paths;
+            if (paths.IsComplete) return WithDetectedVersion(paths);
         }
 
         foreach (var root in CommonRoots)
@@ -46,12 +52,13 @@ public static class PgToolsLocator
             {
                 var bin = Path.Combine(v.Path, "bin");
                 if (!Directory.Exists(bin)) continue;
-                var paths = BuildFromBin(bin) with { Version = v.Version, InstallRoot = v.Path };
-                if (paths.IsComplete) return paths;
+                var paths = BuildFromBin(bin) with { InstallRoot = v.Path };
+                if (paths.IsComplete) return WithDetectedVersion(paths);
             }
         }
 
-        return BuildFromPath();
+        var fromPath = BuildFromPath();
+        return fromPath.IsComplete ? WithDetectedVersion(fromPath) : fromPath;
     }
 
     private static PgToolPaths BuildFromBin(string binDir) => new()
@@ -79,4 +86,41 @@ public static class PgToolsLocator
     }
 
     private static string? ExistsOrNull(string p) => File.Exists(p) ? p : null;
+
+    // Runs the resolved pg_restore.exe --version rather than trusting the
+    // enclosing folder name — the folder name is unavailable at all when the
+    // tools came from a manual Bin Folder Override or the PATH, and even under
+    // "C:\Program Files\PostgreSQL\<N>" it's only ever the major version, not
+    // the exact build (e.g. "15" vs the real "15.18") that a version-mismatch
+    // check against a live server needs to be precise.
+    private static PgToolPaths WithDetectedVersion(PgToolPaths paths)
+        => paths with { Version = DetectVersion(paths.PgRestore) };
+
+    private static readonly Regex VersionRx = new(@"(\d+(?:\.\d+)+)", RegexOptions.Compiled);
+
+    private static string? DetectVersion(string? exePath)
+    {
+        if (string.IsNullOrEmpty(exePath)) return null;
+        try
+        {
+            using var proc = new Process
+            {
+                StartInfo = new ProcessStartInfo(exePath, "--version")
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                }
+            };
+            proc.Start();
+            var output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit(3000);
+            var m = VersionRx.Match(output);
+            return m.Success ? m.Value : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

@@ -15,6 +15,7 @@ using Microsoft.Win32;
 using PgBackupManager.Core.Models;
 using PgBackupManager.Core.Services;
 using PgBackupManager.UI.Services;
+using PgBackupManager.UI.Views;
 
 namespace PgBackupManager.UI.ViewModels;
 
@@ -424,6 +425,30 @@ public partial class BackupViewModel : ObservableObject
             return;
         }
 
+        var pwd = SecretProtector.Unprotect(SelectedProfile.EncryptedPasswordBase64);
+
+        // Pre-flight: client tools newer than the source server can send
+        // session-setup GUCs the server has never heard of — e.g. PostgreSQL
+        // 17+ pg_dump unconditionally sends "SET transaction_timeout = 0"
+        // during its own connection init, which a PostgreSQL 15 server
+        // rejects outright before a single object is read.
+        if (tools.MajorVersion.HasValue)
+        {
+            var serverMajor = await DatabaseAdmin.GetServerMajorVersionAsync(SelectedProfile, pwd);
+            if (serverMajor.HasValue && tools.MajorVersion.Value > serverMajor.Value)
+            {
+                ConfirmDialog.Alert(
+                    Application.Current?.MainWindow,
+                    "Client tools are newer than the source server",
+                    $"pg_dump {tools.Version} is newer than the source server (PostgreSQL {serverMajor}.x).\n\n" +
+                    "Newer client tools can send session settings the server doesn't recognize " +
+                    "(e.g. \"transaction_timeout\", added in PostgreSQL 17) and the backup fails immediately.\n\n" +
+                    $"Fix: Settings → PostgreSQL Client Tools → Bin Folder Override → point at a PostgreSQL {serverMajor}.x install.");
+                StatusText = $"Blocked — pg_dump {tools.Version} is newer than the server (PostgreSQL {serverMajor}.x).";
+                return;
+            }
+        }
+
         var job = BuildJob();
 
         if (job.Scope == BackupScope.SpecificSchemas)
@@ -474,8 +499,6 @@ public partial class BackupViewModel : ObservableObject
 
         try
         {
-            var pwd = SecretProtector.Unprotect(SelectedProfile.EncryptedPasswordBase64);
-
             // Best-effort size estimate for the ETA — if this fails (network hiccup,
             // no privilege, whatever) the backup still proceeds, just without an ETA.
             // One query covers every schema in scope regardless of runSeparate, since
