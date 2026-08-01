@@ -20,7 +20,7 @@
          reads this at runtime (see MainWindow.xaml.cs) instead of a
          hardcoded string, and the installer script/update-check (once
          built) will compare against this too. Bump on every release. -->
-    <Version>2.1.0</Version>
+    <Version>2.1.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

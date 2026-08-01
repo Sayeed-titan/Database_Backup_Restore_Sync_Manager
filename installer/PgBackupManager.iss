@@ -11,7 +11,7 @@
 ; after first launch. See before-install.txt, shown on the welcome page.
 
 #define MyAppName "PgBackupManager"
-#define MyAppVersion "2.1.0"
+#define MyAppVersion "2.1.1"
 #define MyAppPublisher "Mediklaud"
 #define MyAppExeName "PgBackupManager.UI.exe"
 #define PublishDir "..\PgBackupManager.UI\bin\Release\net8.0-windows\win-x64\publish"
