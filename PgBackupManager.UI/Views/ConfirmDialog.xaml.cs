@@ -1,6 +1,8 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using PgBackupManager.Core.Services;
 
 namespace PgBackupManager.UI.Views;
 
@@ -42,6 +44,46 @@ public partial class ConfirmDialog : Window
         dlg.CancelBtn.Visibility = Visibility.Collapsed;
         dlg.ConfirmBtnText.Text = "OK";
         dlg.ShowDialog();
+    }
+
+    /// <summary>
+    /// Version-mismatch alert with a built-in one-click fix: pick a different
+    /// detected PostgreSQL install and save it as the Bin Folder Override right
+    /// from the dialog, instead of cancelling, going to Settings, and coming
+    /// back. Returns true if the user switched — Settings are already saved to
+    /// disk by the time this returns, so the caller just needs to tell them to
+    /// retry (not attempt to auto-continue mid-dialog).
+    /// </summary>
+    public static bool ShowVersionMismatch(Window? owner, string toolKind, string detectedVersion, int serverMajor, string? currentBinDir)
+    {
+        var dlg = Build(owner,
+            "Client tools are newer than the target server",
+            $"{toolKind} {detectedVersion} is newer than the target server (PostgreSQL {serverMajor}.x).\n\n" +
+            "Newer client tools can send session settings the server doesn't recognize " +
+            "(e.g. \"transaction_timeout\", added in PostgreSQL 17) and the run fails immediately.\n\n" +
+            "Pick a matching install below, or fix it later in Settings.",
+            danger: true);
+
+        var installs = PgToolsLocator.DetectAllInstalls(currentBinDir);
+        dlg.InstallPicker.ItemsSource = installs;
+        dlg.InstallPicker.SelectedItem = installs.FirstOrDefault(i => i.MajorVersion == serverMajor) ?? installs.FirstOrDefault();
+        dlg.InstallPickerPanel.Visibility = installs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        dlg.CancelBtn.Content = "CLOSE";
+        dlg.ConfirmBtnText.Text = "SWITCH & SAVE";
+        dlg.ConfirmBtn.IsEnabled = installs.Count > 0;
+
+        dlg.ShowDialog();
+
+        if (dlg.Result && dlg.InstallPicker.SelectedItem is PgInstall chosen)
+        {
+            var store = new SettingsStore();
+            var settings = store.Load();
+            settings.PgBinDirOverride = chosen.BinDir;
+            store.Save(settings);
+            return true;
+        }
+        return false;
     }
 
     private static ConfirmDialog Build(Window? owner, string title, string message, bool danger)

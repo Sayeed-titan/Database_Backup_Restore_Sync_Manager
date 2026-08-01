@@ -21,6 +21,16 @@
                     <StackPanel>
                         <TextBlock Text="PostgreSQL Client Tools" Style="{StaticResource CardTitle}" Margin="0,0,0,3" />
                         <TextBlock Text="Override the auto-detected bin folder (only set this if you have multiple PG installs)." Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,14" TextWrapping="Wrap" />
+                        <Grid Margin="0,0,0,10" Visibility="{Binding DetectedInstalls.Count, Converter={StaticResource ZeroToCollapsed}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="QUICK SWITCH" Style="{StaticResource FieldLabel}" Margin="0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <ComboBox Grid.Column="1" Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                                      ItemsSource="{Binding DetectedInstalls}" SelectedItem="{Binding SelectedInstall}" DisplayMemberPath="Label"
+                                      ToolTip="Every PostgreSQL client install found on this machine — pick one to fill in Bin Folder Override below." />
+                        </Grid>
                         <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120" />

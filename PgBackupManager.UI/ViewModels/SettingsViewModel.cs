@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,6 +15,13 @@ public partial class SettingsViewModel : ObservableObject
     private readonly SettingsStore _store = new();
 
     [ObservableProperty] private string _pgBinDirOverride = "";
+
+    // Every complete PostgreSQL client install found on this machine (Program
+    // Files roots + whatever's currently configured, even if it lives
+    // elsewhere) — lets switching between e.g. a PG15 and a PG18 install be a
+    // single pick instead of re-typing/browsing a folder path each time.
+    public ObservableCollection<PgInstall> DetectedInstalls { get; } = new();
+    [ObservableProperty] private PgInstall? _selectedInstall;
     [ObservableProperty] private string _defaultBackupRoot = "";
     [ObservableProperty] private string _defaultRestoreSource = "";
     [ObservableProperty] private bool _useAutoFolders = true;
@@ -56,9 +64,23 @@ public partial class SettingsViewModel : ObservableObject
         DetectedPgRestore = tools.PgRestore ?? "(not found)";
         DetectedPsql = tools.Psql ?? "(not found)";
         DetectedPgVersion = tools.Version ?? "(unknown)";
+
+        DetectedInstalls.Clear();
+        foreach (var install in PgToolsLocator.DetectAllInstalls(bin))
+            DetectedInstalls.Add(install);
     }
 
     partial void OnPgBinDirOverrideChanged(string value) => DetectTools();
+
+    // Picking an install from the dropdown is the "single click" switch —
+    // just fills in Bin Folder Override with that install's path. Guarded
+    // against re-firing when it already matches, since setting
+    // PgBinDirOverride re-runs DetectTools() (which rebuilds this very list).
+    partial void OnSelectedInstallChanged(PgInstall? value)
+    {
+        if (value != null && !string.Equals(value.BinDir, PgBinDirOverride, StringComparison.OrdinalIgnoreCase))
+            PgBinDirOverride = value.BinDir;
+    }
     partial void OnDefaultBackupRootChanged(string value) => PreviewRetention();
     partial void OnRetentionDaysChanged(int value) => PreviewRetention();
 

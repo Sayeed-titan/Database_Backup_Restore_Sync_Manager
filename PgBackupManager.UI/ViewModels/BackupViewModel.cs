@@ -437,14 +437,11 @@ public partial class BackupViewModel : ObservableObject
             var serverMajor = await DatabaseAdmin.GetServerMajorVersionAsync(SelectedProfile, pwd);
             if (serverMajor.HasValue && tools.MajorVersion.Value > serverMajor.Value)
             {
-                ConfirmDialog.Alert(
-                    Application.Current?.MainWindow,
-                    "Client tools are newer than the source server",
-                    $"pg_dump {tools.Version} is newer than the source server (PostgreSQL {serverMajor}.x).\n\n" +
-                    "Newer client tools can send session settings the server doesn't recognize " +
-                    "(e.g. \"transaction_timeout\", added in PostgreSQL 17) and the backup fails immediately.\n\n" +
-                    $"Fix: Settings → PostgreSQL Client Tools → Bin Folder Override → point at a PostgreSQL {serverMajor}.x install.");
-                StatusText = $"Blocked — pg_dump {tools.Version} is newer than the server (PostgreSQL {serverMajor}.x).";
+                var switched = ConfirmDialog.ShowVersionMismatch(
+                    Application.Current?.MainWindow, "pg_dump", tools.Version ?? "?", serverMajor.Value, settings.PgBinDirOverride);
+                StatusText = switched
+                    ? "Switched PostgreSQL client tools — click Start Backup again to retry."
+                    : $"Blocked — pg_dump {tools.Version} is newer than the server (PostgreSQL {serverMajor}.x).";
                 return;
             }
         }

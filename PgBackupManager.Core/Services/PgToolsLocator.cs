@@ -7,6 +7,15 @@ using System.Text.RegularExpressions;
 
 namespace PgBackupManager.Core.Services;
 
+// One complete, usable PostgreSQL client-tools install found on this machine —
+// powers the "quick switch" pickers in Settings and the version-mismatch
+// dialog, so switching between e.g. a PG15 and a PG18 install is a single
+// click instead of re-typing/browsing a folder path.
+public sealed record PgInstall(string BinDir, string Version, int? MajorVersion)
+{
+    public string Label => $"PostgreSQL {Version}  —  {BinDir}";
+}
+
 public sealed record PgToolPaths
 {
     public string? PgDump { get; init; }
@@ -86,6 +95,42 @@ public static class PgToolsLocator
     }
 
     private static string? ExistsOrNull(string p) => File.Exists(p) ? p : null;
+
+    // Scans the standard install roots for every COMPLETE PostgreSQL client
+    // install on this machine, plus whatever bin folder is currently
+    // configured (which may live outside those roots entirely, like a
+    // hand-placed client-tools-only copy) so it never disappears from the
+    // picker just because it's not under "Program Files".
+    public static List<PgInstall> DetectAllInstalls(string? currentBinDir = null)
+    {
+        var results = new List<PgInstall>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void TryAdd(string binDir)
+        {
+            if (!Directory.Exists(binDir)) return;
+            var full = Path.GetFullPath(binDir);
+            if (!seen.Add(full)) return;
+
+            var paths = BuildFromBin(full);
+            if (!paths.IsComplete) return;
+
+            var version = DetectVersion(paths.PgRestore) ?? "unknown";
+            var major = int.TryParse(version.Split('.')[0], out var m) ? m : (int?)null;
+            results.Add(new PgInstall(full, version, major));
+        }
+
+        foreach (var root in CommonRoots)
+        {
+            if (!Directory.Exists(root)) continue;
+            foreach (var dir in Directory.GetDirectories(root))
+                TryAdd(Path.Combine(dir, "bin"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentBinDir)) TryAdd(currentBinDir);
+
+        return results.OrderByDescending(r => r.MajorVersion ?? -1).ToList();
+    }
 
     // Runs the resolved pg_restore.exe --version rather than trusting the
     // enclosing folder name — the folder name is unavailable at all when the

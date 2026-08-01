@@ -39,6 +39,13 @@
             <TextBlock x:Name="MessageText" FontSize="12.5" Foreground="{StaticResource Body}"
                        TextWrapping="Wrap" LineHeight="20" Margin="0,0,0,4" />
 
+            <!-- optional install picker — only shown by ShowVersionMismatch(), hidden for every other Alert/Confirm -->
+            <StackPanel x:Name="InstallPickerPanel" Visibility="Collapsed" Margin="0,14,0,0">
+                <TextBlock Text="SWITCH TO" Style="{StaticResource FieldLabel}" />
+                <ComboBox x:Name="InstallPicker" Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                          DisplayMemberPath="Label" />
+            </StackPanel>
+
             <!-- actions -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
                 <Button x:Name="CancelBtn" Style="{StaticResource GhostButton}" Click="CancelBtn_Click" Content="CANCEL" Padding="18,9" Margin="0,0,8,0" />
