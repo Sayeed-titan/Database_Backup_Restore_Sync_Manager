@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -40,6 +42,8 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private int _retentionPreviewCount;
     [ObservableProperty] private string _settingsFilePath = "";
 
+    public string CurrentVersionText => $"v{UpdateService.CurrentVersion.Major}.{UpdateService.CurrentVersion.Minor}";
+
     public SettingsViewModel()
     {
         var s = _store.Load();
@@ -68,6 +72,15 @@ public partial class SettingsViewModel : ObservableObject
         DetectedInstalls.Clear();
         foreach (var install in PgToolsLocator.DetectAllInstalls(bin))
             DetectedInstalls.Add(install);
+
+        // Reflect whichever install is ACTUALLY active right now (override or
+        // auto-detected) so Quick Switch always shows the current version at a
+        // glance, instead of sitting blank until you deliberately change it.
+        var activeBinDir = string.IsNullOrEmpty(tools.PgDump) ? null : Path.GetDirectoryName(tools.PgDump);
+        SelectedInstall = activeBinDir is null
+            ? null
+            : DetectedInstalls.FirstOrDefault(i => string.Equals(
+                Path.GetFullPath(i.BinDir), Path.GetFullPath(activeBinDir), StringComparison.OrdinalIgnoreCase));
     }
 
     partial void OnPgBinDirOverrideChanged(string value) => DetectTools();
@@ -156,5 +169,15 @@ public partial class SettingsViewModel : ObservableObject
         var deleted = RetentionPolicy.DeleteExpired(DefaultBackupRoot, RetentionDays, DateTime.Now);
         StatusText = $"Deleted {deleted} backup file(s) older than {RetentionDays} days from {DefaultBackupRoot}.";
         PreviewRetention();
+    }
+
+    // Manual check always reports back (found / up to date / error) since the
+    // user explicitly asked — unlike the silent automatic check on startup.
+    [RelayCommand]
+    private async Task CheckForUpdatesAsync()
+    {
+        StatusText = "Checking for updates...";
+        await UpdateService.CheckAsync(silent: false);
+        StatusText = "";
     }
 }

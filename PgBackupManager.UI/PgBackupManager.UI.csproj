@@ -16,6 +16,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- Single source of truth for the app's version — the title bar badge
+         reads this at runtime (see MainWindow.xaml.cs) instead of a
+         hardcoded string, and the installer script/update-check (once
+         built) will compare against this too. Bump on every release. -->
+    <Version>2.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

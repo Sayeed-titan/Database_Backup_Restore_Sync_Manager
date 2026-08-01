@@ -13,7 +13,7 @@
         </Grid.RowDefinitions>
 
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,22,24,8">
-            <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+            <StackPanel>
                 <TextBlock Text="Settings" Style="{StaticResource H1}" Margin="0,0,0,16" />
 
                 <!-- PG tools -->
@@ -126,6 +126,18 @@
                             <Run Text="{Binding RetentionPreviewCount}" FontWeight="Bold" Foreground="#FF0F2340" FontSize="12" />
                         </TextBlock>
                         <Button Style="{StaticResource PillButton}" Command="{Binding RunRetentionCleanupCommand}" Content="RUN CLEANUP NOW" HorizontalAlignment="Left" Padding="14,8" />
+                    </StackPanel>
+                </Border>
+
+                <!-- About / updates -->
+                <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="About" Style="{StaticResource CardTitle}" Margin="0,0,0,14" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding CurrentVersionText}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Navy}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                            <Button Style="{StaticResource GhostButton}" Command="{Binding CheckForUpdatesCommand}" Content="CHECK FOR UPDATES" Padding="14,8" />
+                        </StackPanel>
+                        <TextBlock Text="Checks automatically each time the app starts — this button is for checking on demand." FontSize="11" Foreground="{StaticResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
 

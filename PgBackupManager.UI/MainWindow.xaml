@@ -47,7 +47,7 @@
                     <TextBlock Text="PgBackupManager" Foreground="White" FontWeight="Bold" FontSize="13"
                                VerticalAlignment="Center" Margin="10,0,0,0" />
                     <Border BorderBrush="#FF2C456B" BorderThickness="1" CornerRadius="5" Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="v2.0" Foreground="#FF6885AA" FontWeight="Bold" FontSize="9.5" />
+                        <TextBlock x:Name="VersionBadge" Foreground="#FF6885AA" FontWeight="Bold" FontSize="9.5" />
                     </Border>
                 </StackPanel>
 

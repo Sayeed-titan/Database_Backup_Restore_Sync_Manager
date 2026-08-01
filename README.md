@@ -50,7 +50,7 @@ backups work — it makes the process visible and hard to get wrong:
 
 ### Option A — Installer (recommended)
 
-Download **[`installer/dist/PgBackupManager-Setup-2.0.exe`](installer/dist/PgBackupManager-Setup-2.0.exe)**
+Download **[`installer/dist/PgBackupManager-Setup-2.1.0.exe`](installer/dist/PgBackupManager-Setup-2.1.0.exe)**
 from this repo and run it. It installs the app with a Start Menu shortcut
 and an uninstaller — nothing else on the machine is required to *run*
 PgBackupManager itself (the .NET runtime is bundled inside the installer).
