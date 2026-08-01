@@ -46,6 +46,13 @@ public partial class SettingsViewModel : ObservableObject
 
     public SettingsViewModel()
     {
+        LoadFromStore();
+    }
+
+    // Shared by the constructor and Cancel — reloads every field from
+    // whatever is currently saved on disk, discarding any in-memory edits.
+    private void LoadFromStore()
+    {
         var s = _store.Load();
         PgBinDirOverride = s.PgBinDirOverride ?? "";
         DefaultBackupRoot = s.DefaultBackupRoot;
@@ -145,6 +152,13 @@ public partial class SettingsViewModel : ObservableObject
             FlashTaskbarOnCompletion = FlashTaskbarOnCompletion,
         });
         StatusText = $"Saved to {_store.FilePath}";
+    }
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        LoadFromStore();
+        StatusText = "Changes discarded — reverted to last saved settings.";
     }
 
     // Previews the CURRENT (possibly unsaved) toggle/duration values directly,

@@ -150,6 +150,8 @@
         <!-- Footer -->
         <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource GhostButton}" Command="{Binding CancelCommand}" Content="CANCEL" Padding="20,10" Margin="0,0,10,0"
+                        ToolTip="Discard unsaved changes and revert every field to what's currently saved on disk." />
                 <Button Style="{StaticResource PrimaryButton}" Command="{Binding SaveCommand}" Padding="26,10">
                     <StackPanel Orientation="Horizontal">
                         <Path Width="14" Height="14" Stretch="Uniform" Stroke="White" StrokeThickness="2" StrokeLineJoin="Round" Margin="0,0,8,0"
