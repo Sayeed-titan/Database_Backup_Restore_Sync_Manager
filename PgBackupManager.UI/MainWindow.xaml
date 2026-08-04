@@ -77,6 +77,12 @@
                 <TabItem Header="Copy Schema">
                     <views:CopySchemaView />
                 </TabItem>
+                <TabItem Header="Sync">
+                    <views:SyncView />
+                </TabItem>
+                <TabItem Header="Import">
+                    <views:ImportView />
+                </TabItem>
                 <TabItem Header="Profiles">
                     <views:ProfilesView />
                 </TabItem>

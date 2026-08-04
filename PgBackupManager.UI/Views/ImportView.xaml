@@ -1,0 +1,189 @@
+<UserControl x:Class="PgBackupManager.UI.Views.ImportView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:PgBackupManager.UI.ViewModels"
+             xmlns:ctrl="clr-namespace:PgBackupManager.UI.Controls">
+    <UserControl.DataContext>
+        <vm:ImportViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="{StaticResource AppBg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,18,24,8">
+            <StackPanel>
+                <TextBlock Text="Import from SQL Server" Style="{StaticResource H1}" Margin="0,0,0,4" />
+                <TextBlock Foreground="{StaticResource Muted}" FontSize="12.5" Margin="0,0,0,16" TextWrapping="Wrap"
+                           Text="One-way migration into a Postgres schema. SQL Server's .bak format is proprietary — restore it to a live SQL Server first (any recent edition), then point this at that instance. Missing tables are created with type-mapped columns; existing ones only get rows appended." />
+
+                <!-- Source / Target -->
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Style="{StaticResource Card}" Padding="16">
+                        <StackPanel>
+                            <TextBlock Text="SOURCE (SQL Server, read-only)" Style="{StaticResource CardTitle}" Margin="0,0,0,10" />
+                            <TextBlock Text="SERVER \ INSTANCE" Style="{StaticResource FieldLabel}" />
+                            <TextBox Style="{StaticResource InputBox}" Text="{Binding MssqlServer, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+                            <TextBlock Text="DATABASE" Style="{StaticResource FieldLabel}" />
+                            <TextBox Style="{StaticResource InputBox}" Text="{Binding MssqlDatabase, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" />
+                            <CheckBox Style="{StaticResource DesignCheck}" Content="Windows Authentication (integrated security)"
+                                      IsChecked="{Binding MssqlIntegratedSecurity}" Margin="0,0,0,10" />
+                            <Grid Visibility="{Binding UseSqlLogin, Converter={StaticResource BoolToVisible}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="SQL LOGIN" Style="{StaticResource FieldLabel}" />
+                                    <TextBox Style="{StaticResource InputBox}" Text="{Binding MssqlUsername, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="PASSWORD" Style="{StaticResource FieldLabel}" />
+                                    <PasswordBox Style="{StaticResource InputPasswordBox}" x:Name="MssqlPasswordBox" PasswordChanged="MssqlPasswordBox_PasswordChanged" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="SCHEMA" Style="{StaticResource FieldLabel}" Margin="0,10,0,0" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                                      ItemsSource="{Binding SourceSchemas}" SelectedItem="{Binding SourceSchema}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Path Grid.Column="1" Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center" Margin="14,0"
+                          Stroke="{StaticResource Muted}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Data="M5 12 h14 M13 6 l6 6 -6 6" />
+
+                    <Border Grid.Column="2" Style="{StaticResource Card}" Padding="16">
+                        <StackPanel>
+                            <TextBlock Text="TARGET (Postgres)" Style="{StaticResource CardTitle}" Margin="0,0,0,10" />
+                            <TextBlock Text="PROFILE" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                                      ItemsSource="{Binding Profiles}" SelectedItem="{Binding TargetProfile}" DisplayMemberPath="Name" Margin="0,0,0,10" />
+                            <TextBlock Text="SCHEMA (created if missing)" Style="{StaticResource FieldLabel}" />
+                            <TextBox Style="{StaticResource InputBox}" FontFamily="{StaticResource FontMono}"
+                                     Text="{Binding TargetSchema, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Button Style="{StaticResource GhostButton}" Command="{Binding LoadTablesCommand}" HorizontalAlignment="Left" Margin="0,0,0,16" Padding="16,8">
+                    <StackPanel Orientation="Horizontal">
+                        <ctrl:Spinner Width="12" Height="12" Margin="0,0,7,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                        <TextBlock Text="Load Tables" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Tables -->
+                <Border Style="{StaticResource Card}" Padding="16" Margin="0,0,0,16">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="TABLES" Style="{StaticResource CardTitle}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Style="{StaticResource GhostButton}" Command="{Binding SelectAllTablesCommand}" Content="ALL" Padding="9,3" FontSize="10" Margin="0,0,6,0" />
+                                <Button Style="{StaticResource GhostButton}" Command="{Binding SelectNoneTablesCommand}" Content="NONE" Padding="9,3" FontSize="10" />
+                            </StackPanel>
+                        </Grid>
+                        <Border BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8">
+                            <ScrollViewer Height="220" VerticalScrollBarVisibility="Auto" Padding="10,6">
+                                <ItemsControl ItemsSource="{Binding AvailableTables}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Vertical" MaxHeight="600" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Style="{StaticResource DesignCheck}" Content="{Binding Label}" IsChecked="{Binding IsChecked, Mode=TwoWay}" Margin="0,3,24,3" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Dry run + note -->
+                <Border Background="{StaticResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,0,0,16">
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox Style="{StaticResource DesignCheck}" Content="Dry run (preview only — no changes made)" IsChecked="{Binding DryRun}" Margin="0,0,18,0" VerticalAlignment="Center" />
+                        <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0" Fill="{StaticResource Teal}"
+                              Data="M12 2 L4 5 v6 c0 5 3.5 8 8 9 c4.5 -1 8 -4 8 -9 V5 Z M10.5 13.5 L8 11 l-1.3 1.3 L10.5 16 L17 9.5 L15.7 8.2 Z" />
+                        <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{StaticResource Secondary}" TextWrapping="Wrap">
+                            <Run Text="One-way, source is read-only:" FontWeight="Bold" />
+                            <Run Text="the SQL Server side is never modified. Column types are best-effort mapped — spot-check anything flagged in the log after a real run." />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Terminal -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="OUTPUT" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding CopyLogCommand}" Padding="10,3" FontSize="10">
+                        <TextBlock Text="COPY LOG" />
+                    </Button>
+                </Grid>
+                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{StaticResource TermBorder}" BorderThickness="1" ClipToBounds="True">
+                    <ScrollViewer Background="{StaticResource TermBg}" Height="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
+                        <ItemsControl ItemsSource="{Binding LogLines}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" Style="{StaticResource TermLine}" Foreground="{Binding Converter={StaticResource LogLineBrush}}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Margin="0,0,8,0" Fill="{Binding StatusText, Converter={StaticResource StatusBrush}}" />
+                    <TextBlock Text="{Binding StatusText}" FontWeight="Bold" FontSize="13"
+                               Foreground="{Binding StatusText, Converter={StaticResource StatusBrush}}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0" MinWidth="90"
+                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}">
+                    <TextBlock FontSize="11" Foreground="{StaticResource Secondary}" HorizontalAlignment="Right">
+                        <Run Text="{Binding ElapsedText, Mode=OneWay}" FontWeight="Bold" />
+                        <Run Text=" elapsed" />
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Style="{StaticResource GhostButton}" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}"
+                            Content="CANCEL" Margin="0,0,10,0" Padding="20,9" />
+                    <Button Style="{StaticResource PrimaryButton}" Command="{Binding RunCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <ctrl:Spinner Width="13" Height="13" Margin="0,0,8,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                            <TextBlock Text="{Binding RunButtonText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
