@@ -16,6 +16,7 @@
             <conv:StringEmptyToVisibleConverter x:Key="EmptyToVisible" />
             <conv:LogLineBrushConverter x:Key="LogLineBrush" />
             <conv:StatusBrushConverter x:Key="StatusBrush" />
+            <conv:DbEngineBadgeConverter x:Key="DbEngineBadge" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

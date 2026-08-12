@@ -54,6 +54,7 @@
                             <Grid Margin="16,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="64" />
                                     <ColumnDefinition Width="150" />
                                     <ColumnDefinition Width="80" />
                                     <ColumnDefinition Width="130" />
@@ -62,12 +63,13 @@
                                     <ColumnDefinition Width="150" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="NAME" Style="{StaticResource FieldLabel}" Margin="0" />
-                                <TextBlock Grid.Column="1" Text="HOST" Style="{StaticResource FieldLabel}" Margin="0" />
-                                <TextBlock Grid.Column="2" Text="PORT" Style="{StaticResource FieldLabel}" Margin="0" />
-                                <TextBlock Grid.Column="3" Text="DATABASE" Style="{StaticResource FieldLabel}" Margin="0" />
-                                <TextBlock Grid.Column="4" Text="USER" Style="{StaticResource FieldLabel}" Margin="0" />
-                                <TextBlock Grid.Column="5" Text="DEFAULT SCHEMA" Style="{StaticResource FieldLabel}" Margin="0" />
-                                <TextBlock Grid.Column="6" Text="UPDATED" Style="{StaticResource FieldLabel}" Margin="0" />
+                                <TextBlock Grid.Column="1" Text="ENGINE" Style="{StaticResource FieldLabel}" Margin="0" />
+                                <TextBlock Grid.Column="2" Text="HOST" Style="{StaticResource FieldLabel}" Margin="0" />
+                                <TextBlock Grid.Column="3" Text="PORT" Style="{StaticResource FieldLabel}" Margin="0" />
+                                <TextBlock Grid.Column="4" Text="DATABASE" Style="{StaticResource FieldLabel}" Margin="0" />
+                                <TextBlock Grid.Column="5" Text="USER" Style="{StaticResource FieldLabel}" Margin="0" />
+                                <TextBlock Grid.Column="6" Text="DEFAULT SCHEMA" Style="{StaticResource FieldLabel}" Margin="0" />
+                                <TextBlock Grid.Column="7" Text="UPDATED" Style="{StaticResource FieldLabel}" Margin="0" />
                             </Grid>
                         </Border>
                         <ListBox Grid.Row="1" Background="Transparent" BorderThickness="0"
@@ -101,6 +103,7 @@
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="160" />
+                                            <ColumnDefinition Width="64" />
                                             <ColumnDefinition Width="150" />
                                             <ColumnDefinition Width="80" />
                                             <ColumnDefinition Width="130" />
@@ -109,12 +112,15 @@
                                             <ColumnDefinition Width="150" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" Text="{Binding Name}" Style="{StaticResource RowName}" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Host}" Style="{StaticResource RowSub}" FontFamily="{StaticResource FontMono}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding Port}" Style="{StaticResource RowSub}" FontFamily="{StaticResource FontMono}" />
-                                        <TextBlock Grid.Column="3" Text="{Binding Database}" Style="{StaticResource RowSub}" />
-                                        <TextBlock Grid.Column="4" Text="{Binding Username}" Style="{StaticResource RowSub}" />
-                                        <TextBlock Grid.Column="5" Text="{Binding DefaultSchema}" Style="{StaticResource RowSub}" />
-                                        <TextBlock Grid.Column="6" Text="{Binding UpdatedUtc, StringFormat='yyyy-MM-dd HH:mm'}" Style="{StaticResource RowSub}" />
+                                        <Border Grid.Column="1" Background="{StaticResource TealBadgeBg}" CornerRadius="6" Padding="6,2" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Engine, Converter={StaticResource DbEngineBadge}}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Teal}" />
+                                        </Border>
+                                        <TextBlock Grid.Column="2" Text="{Binding Host}" Style="{StaticResource RowSub}" FontFamily="{StaticResource FontMono}" />
+                                        <TextBlock Grid.Column="3" Text="{Binding Port}" Style="{StaticResource RowSub}" FontFamily="{StaticResource FontMono}" />
+                                        <TextBlock Grid.Column="4" Text="{Binding Database}" Style="{StaticResource RowSub}" />
+                                        <TextBlock Grid.Column="5" Text="{Binding Username}" Style="{StaticResource RowSub}" />
+                                        <TextBlock Grid.Column="6" Text="{Binding DefaultSchema}" Style="{StaticResource RowSub}" />
+                                        <TextBlock Grid.Column="7" Text="{Binding UpdatedUtc, StringFormat='yyyy-MM-dd HH:mm'}" Style="{StaticResource RowSub}" />
                                     </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>

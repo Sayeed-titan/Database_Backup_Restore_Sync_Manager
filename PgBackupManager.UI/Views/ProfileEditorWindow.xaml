@@ -39,6 +39,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,12">
@@ -46,33 +47,45 @@
                     <TextBox Style="{StaticResource InputBox}" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,6,12">
+                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,12">
+                    <TextBlock Text="ENGINE" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <RadioButton GroupName="Engine" Content="PostgreSQL" IsChecked="{Binding IsPostgresChecked}" Margin="0,0,16,0" VerticalAlignment="Center" />
+                    <RadioButton GroupName="Engine" Content="SQL Server" IsChecked="{Binding IsSqlServerChecked}" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,6,12">
                     <TextBlock Text="HOST" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource InputBox}" Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
-                <StackPanel Grid.Row="1" Grid.Column="1" Margin="6,0,0,12">
+                <StackPanel Grid.Row="2" Grid.Column="1" Margin="6,0,0,12">
                     <TextBlock Text="PORT" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource InputBox}" Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,6,12">
+                <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,6,12">
                     <TextBlock Text="DATABASE" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource InputBox}" Text="{Binding Database, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
-                <StackPanel Grid.Row="2" Grid.Column="1" Margin="6,0,0,12">
+                <StackPanel Grid.Row="3" Grid.Column="1" Margin="6,0,0,12" Visibility="{Binding ShowCredentials, Converter={StaticResource BoolToVisible}}">
                     <TextBlock Text="USER" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource InputBox}" Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,6,0">
+                <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,6,0" Visibility="{Binding ShowCredentials, Converter={StaticResource BoolToVisible}}">
                     <TextBlock Text="PASSWORD" Style="{StaticResource FieldLabel}" />
                     <Border BorderBrush="{StaticResource BorderSoft}" BorderThickness="1.5" CornerRadius="8" Background="White">
                         <PasswordBox x:Name="PasswordInput" BorderThickness="0" Padding="11,8" FontSize="12.5" Background="Transparent" />
                     </Border>
                 </StackPanel>
-                <StackPanel Grid.Row="3" Grid.Column="1" Margin="6,0,0,0">
-                    <TextBlock Text="DEFAULT SCHEMA" Style="{StaticResource FieldLabel}" />
-                    <TextBox Style="{StaticResource InputBox}" Text="{Binding DefaultSchema, UpdateSourceTrigger=PropertyChanged}" />
+                <StackPanel Grid.Row="4" Grid.Column="1" Margin="6,0,0,0">
+                    <StackPanel Visibility="{Binding IsPostgres, Converter={StaticResource BoolToVisible}}">
+                        <TextBlock Text="DEFAULT SCHEMA" Style="{StaticResource FieldLabel}" />
+                        <TextBox Style="{StaticResource InputBox}" Text="{Binding DefaultSchema, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <StackPanel Visibility="{Binding IsSqlServer, Converter={StaticResource BoolToVisible}}" VerticalAlignment="Bottom">
+                        <TextBlock Text="AUTHENTICATION" Style="{StaticResource FieldLabel}" />
+                        <CheckBox Content="Use Windows Authentication" IsChecked="{Binding SqlIntegratedSecurity}" VerticalAlignment="Center" Margin="0,6,0,0" />
+                    </StackPanel>
                 </StackPanel>
             </Grid>
 

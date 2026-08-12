@@ -74,6 +74,12 @@
                 <TabItem Header="Restore">
                     <views:RestoreView />
                 </TabItem>
+                <TabItem Header="MSSQL Backup">
+                    <views:MsSqlBackupView />
+                </TabItem>
+                <TabItem Header="MSSQL Restore">
+                    <views:MsSqlRestoreView />
+                </TabItem>
                 <TabItem Header="Copy Schema">
                     <views:CopySchemaView />
                 </TabItem>

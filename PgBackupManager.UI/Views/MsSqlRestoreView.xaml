@@ -1,0 +1,164 @@
+<UserControl x:Class="PgBackupManager.UI.Views.MsSqlRestoreView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:PgBackupManager.UI.ViewModels"
+             xmlns:ctrl="clr-namespace:PgBackupManager.UI.Controls">
+    <UserControl.DataContext>
+        <vm:MsSqlRestoreViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="{StaticResource AppBg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,18,24,8">
+            <StackPanel>
+                <TextBlock Text="SQL Server Restore" Style="{StaticResource H1}" Margin="0,0,0,4" />
+                <TextBlock Foreground="{StaticResource Muted}" FontSize="12.5" Margin="0,0,0,16" TextWrapping="Wrap"
+                           Text="RESTORE DATABASE always brings back the WHOLE database — no per-object scoping like the Postgres tab. Analyze reads the backup's own header (original database name, backup date) before anything is touched." />
+
+                <!-- Source / Target -->
+                <Border Style="{StaticResource Card}" Padding="16" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="SOURCE FILE" Style="{StaticResource CardTitle}" Margin="0,0,0,10" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" Style="{StaticResource InputBox}" FontFamily="{StaticResource FontMono}"
+                                     Text="{Binding BackupFile, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,8,0" />
+                            <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding BrowseFileCommand}" Content="BROWSE" Padding="16,8" />
+                        </Grid>
+
+                        <TextBlock Text="TARGET PROFILE (SQL Server)" Style="{StaticResource FieldLabel}" Margin="0,12,0,0" />
+                        <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                                  ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" DisplayMemberPath="Name" />
+                        <TextBlock Text="No SQL Server profiles yet — add one in the Profiles tab (Engine = SQL Server)."
+                                   Foreground="{StaticResource Muted}" FontSize="11.5" Margin="2,8,0,0"
+                                   Visibility="{Binding Profiles.Count, Converter={StaticResource ZeroToVisible}}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- RESTORE TARGET banner -->
+                <Border Style="{StaticResource Card}" CornerRadius="12" Padding="14,10" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="RESTORE INTO" Style="{StaticResource FieldLabel}" Margin="0,0,0,4" />
+                        <TextBlock Text="{Binding RestoreTargetText}" FontFamily="{StaticResource FontMono}" FontSize="13.5" FontWeight="SemiBold"
+                                   Foreground="{Binding RestoreTargetBrush}" />
+                        <TextBlock Text="{Binding RestoreTargetHint}" FontSize="11" Foreground="{Binding RestoreTargetBrush}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Button Style="{StaticResource GhostButton}" Command="{Binding AnalyzeCommand}" HorizontalAlignment="Left" Margin="0,0,0,12" Padding="16,8">
+                    <StackPanel Orientation="Horizontal">
+                        <ctrl:Spinner Width="12" Height="12" Margin="0,0,7,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                        <TextBlock Text="Analyze" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <!-- Analysis result -->
+                <Border Style="{StaticResource Card}" Padding="16" Margin="0,0,0,16"
+                        Visibility="{Binding IsAnalyzed, Converter={StaticResource BoolToVisible}}">
+                    <StackPanel>
+                        <TextBlock Text="BACKUP HEADER" Style="{StaticResource CardTitle}" Margin="0,0,0,10" />
+                        <TextBlock FontSize="12.5" Margin="0,0,0,10">
+                            <Run Text="Original database:" Foreground="{StaticResource Muted}" />
+                            <Run Text="{Binding OriginalDatabaseName, Mode=OneWay}" FontWeight="Bold" />
+                            <Run Text="  ·  backed up " Foreground="{StaticResource Muted}" />
+                            <Run Text="{Binding BackupFinishDate, Mode=OneWay, StringFormat='yyyy-MM-dd HH:mm'}" FontWeight="Bold" />
+                            <Run Text="  ·  " Foreground="{StaticResource Muted}" />
+                            <Run Text="{Binding FileCount, Mode=OneWay}" FontWeight="Bold" />
+                            <Run Text=" file(s)" Foreground="{StaticResource Muted}" />
+                        </TextBlock>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock Text="RESTORE AS DATABASE NAME" Style="{StaticResource FieldLabel}" />
+                                <TextBox Style="{StaticResource InputBox}" FontFamily="{StaticResource FontMono}"
+                                         Text="{Binding TargetDatabase, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+                                <CheckBox Style="{StaticResource DesignCheck}" Content="Overwrite existing (WITH REPLACE)"
+                                          IsChecked="{Binding OverwriteExisting}" Height="38" VerticalAlignment="Bottom" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Background="{StaticResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,10,0,0"
+                                Visibility="{Binding TargetExists, Converter={StaticResource BoolToVisible}}">
+                            <TextBlock FontSize="11.5" Foreground="{StaticResource Secondary}" TextWrapping="Wrap">
+                                <Run Text="'" /><Run Text="{Binding TargetDatabase, Mode=OneWay}" FontWeight="Bold" /><Run Text="' already exists on this server." />
+                                <Run Text=" Tick 'Overwrite existing' above to replace it, or change the name to restore alongside it." />
+                            </TextBlock>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Terminal -->
+                <Grid Margin="0,0,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="OUTPUT" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding CopyLogCommand}" Padding="10,3" FontSize="10">
+                        <TextBlock Text="COPY LOG" />
+                    </Button>
+                </Grid>
+                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{StaticResource TermBorder}" BorderThickness="1" ClipToBounds="True">
+                    <ScrollViewer x:Name="LogScroll" Background="{StaticResource TermBg}" Height="240" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
+                        <ItemsControl ItemsSource="{Binding LogLines}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding}" Style="{StaticResource TermLine}" Foreground="{Binding Converter={StaticResource LogLineBrush}}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Margin="0,0,8,0" Fill="{Binding StatusText, Converter={StaticResource StatusBrush}}" />
+                    <TextBlock Text="{Binding StatusText}" FontWeight="Bold" FontSize="13"
+                               Foreground="{Binding StatusText, Converter={StaticResource StatusBrush}}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0" MinWidth="110"
+                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}">
+                    <TextBlock FontSize="11" Foreground="{StaticResource Secondary}" HorizontalAlignment="Right">
+                        <Run Text="{Binding ElapsedText, Mode=OneWay}" FontWeight="Bold" />
+                        <Run Text=" elapsed" />
+                    </TextBlock>
+                    <ProgressBar Height="5" Margin="0,4,0,0" Minimum="0" Maximum="100" Value="{Binding ProgressPercent, Mode=OneWay}"
+                                 Visibility="{Binding HasProgress, Converter={StaticResource BoolToVisible}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Style="{StaticResource GhostButton}" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}"
+                            Content="CANCEL" Margin="0,0,10,0" Padding="20,9" />
+                    <Button Style="{StaticResource PrimaryButton}" Command="{Binding StartRestoreCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <ctrl:Spinner Width="13" Height="13" Margin="0,0,8,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                            <TextBlock Text="Start Restore" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
