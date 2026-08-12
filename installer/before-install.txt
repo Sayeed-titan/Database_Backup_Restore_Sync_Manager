@@ -11,3 +11,8 @@ usually find them on its own. If not, install PostgreSQL (or the
     Settings tab -> PostgreSQL Client Tools -> Bin Folder Override
 
 and point it at the folder containing pg_dump.exe.
+
+SQL Server backup/restore (the MSSQL Backup / MSSQL Restore tabs) needs
+NO extra tools — it talks to SQL Server directly, so there's nothing to
+configure beyond adding a connection profile (Profiles tab -> Add ->
+Engine: SQL Server).

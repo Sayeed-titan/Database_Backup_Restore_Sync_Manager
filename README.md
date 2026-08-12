@@ -1,8 +1,8 @@
 # PgBackupManager
 
-A Windows desktop application for backing up and restoring PostgreSQL
-databases — built for anyone who needs a safe, visual way to run `pg_dump`
-and `pg_restore` without memorizing command-line flags.
+A Windows desktop application for backing up and restoring **PostgreSQL and
+SQL Server** databases — built for anyone who needs a safe, visual way to run
+backups and restores without memorizing command-line flags.
 
 Point it at a database, pick what you want backed up, and it does the rest:
 correct flags, timestamped files, a live progress log, and a clear picture of
@@ -17,10 +17,12 @@ what a restore will actually do to the target database *before* you run it.
 - [First-time setup](#first-time-setup)
 - [Using the app](#using-the-app)
   - [1. Add a connection profile](#1-add-a-connection-profile)
-  - [2. Take a backup](#2-take-a-backup)
-  - [3. Restore a backup](#3-restore-a-backup)
-  - [4. Notifications](#4-notifications)
-  - [5. Retention cleanup](#5-retention-cleanup)
+  - [2. Take a backup (PostgreSQL)](#2-take-a-backup-postgresql)
+  - [3. Restore a backup (PostgreSQL)](#3-restore-a-backup-postgresql)
+  - [4. Back up a SQL Server database](#4-back-up-a-sql-server-database)
+  - [5. Restore a SQL Server database](#5-restore-a-sql-server-database)
+  - [6. Notifications](#6-notifications)
+  - [7. Retention cleanup](#7-retention-cleanup)
 - [Safety features](#safety-features)
 - [Troubleshooting](#troubleshooting)
 - [For developers](#for-developers)
@@ -29,18 +31,21 @@ what a restore will actually do to the target database *before* you run it.
 
 ## What it does
 
-PgBackupManager is a front end for PostgreSQL's own backup tools
-(`pg_dump` / `pg_restore` / `psql`). It doesn't reinvent how PostgreSQL
+PgBackupManager is a front end for **PostgreSQL's own backup tools**
+(`pg_dump` / `pg_restore` / `psql`) **and native SQL Server backup/restore**
+(`BACKUP DATABASE` / `RESTORE DATABASE`, talked to directly — no extra tools
+to install for the SQL Server side). It doesn't reinvent how either engine's
 backups work — it makes the process visible and hard to get wrong:
 
-- **Backup** a full database, specific schemas, or specific tables, in
-  whichever archive format you need, with a live log and a time estimate
-  instead of a blank terminal.
+- **Backup** a full database, specific schemas, or specific tables (PostgreSQL)
+  — or a whole database (SQL Server) — in whichever archive format you need,
+  with a live log and a time estimate instead of a blank terminal.
 - **Restore** a backup file into any target, but only after showing you
   exactly what's new, what already exists, and what will actually change —
   not just "restore started."
-- **Manage connections** to as many databases as you work with, with
-  passwords encrypted on disk instead of stored in plain text.
+- **Manage connections** to as many databases as you work with — PostgreSQL
+  and SQL Server side by side in one Profiles list — with passwords encrypted
+  on disk instead of stored in plain text.
 - **Get notified** when a long-running backup or restore finishes, even if
   you've minimized the app to work on something else.
 
@@ -50,7 +55,7 @@ backups work — it makes the process visible and hard to get wrong:
 
 ### Option A — Installer (recommended)
 
-Download **[`installer/dist/PgBackupManager-Setup-2.1.1.exe`](installer/dist/PgBackupManager-Setup-2.1.1.exe)**
+Download **[`installer/dist/PgBackupManager-Setup-2.2.0.exe`](installer/dist/PgBackupManager-Setup-2.2.0.exe)**
 from this repo and run it. It installs the app with a Start Menu shortcut
 and an uninstaller — nothing else on the machine is required to *run*
 PgBackupManager itself (the .NET runtime is bundled inside the installer).
@@ -58,12 +63,14 @@ PgBackupManager itself (the .NET runtime is bundled inside the installer).
 If you're browsing on GitHub: open that path, click **View raw** (or the
 download icon), and save the `.exe`.
 
-**One real prerequisite:** PgBackupManager calls PostgreSQL's own
-command-line tools (`pg_dump.exe`, `pg_restore.exe`, `psql.exe`) — it does not
-bundle them. If this machine already has PostgreSQL (or just its client
-tools) installed, PgBackupManager finds them automatically. If not, install
-PostgreSQL first (or just the "command line tools" component), then see
-[First-time setup](#first-time-setup) below to point the app at them.
+**One real prerequisite (PostgreSQL side only):** PgBackupManager calls
+PostgreSQL's own command-line tools (`pg_dump.exe`, `pg_restore.exe`,
+`psql.exe`) — it does not bundle them. If this machine already has
+PostgreSQL (or just its client tools) installed, PgBackupManager finds them
+automatically. If not, install PostgreSQL first (or just the "command line
+tools" component), then see [First-time setup](#first-time-setup) below to
+point the app at them. **SQL Server backup/restore needs nothing extra** — it
+talks to SQL Server directly, so there's no client tool to install or configure.
 
 ### Option B — Run from source
 
@@ -106,15 +113,18 @@ Then go to the **Profiles** tab and add your first database connection.
 | Field | Meaning |
 |---|---|
 | Profile Name | Whatever you want to call it — shown everywhere else in the app |
-| Host / Port | Where the PostgreSQL server is |
+| Engine | **PostgreSQL** or **SQL Server** — picks which fields apply and which tabs (Backup/Restore vs. MSSQL Backup/Restore) the profile shows up in |
+| Host / Port | Where the server is. Port defaults to 5432 (PostgreSQL) / 1433 (SQL Server) and flips automatically when you change Engine, unless you've already typed your own |
 | Database | The database name |
-| User / Password | Login credentials — the password is encrypted with Windows DPAPI and can only be decrypted by your own Windows user account on this machine |
-| Default Schema | Optional, informational only |
+| User / Password | PostgreSQL: always used. SQL Server: only used when "Use Windows Authentication" is unchecked — otherwise it connects as the account running PgBackupManager. Password is encrypted with Windows DPAPI and can only be decrypted by your own Windows user account on this machine |
+| Default Schema | PostgreSQL only, optional and informational |
 
 Use **Test Connection** to confirm it connects before relying on it. **EDIT**
-and **DELETE** work on whichever profile is selected in the list.
+and **DELETE** work on whichever profile is selected in the list. The
+Profiles list shows a **PG** / **MSSQL** badge next to each name so a mixed
+list stays easy to scan.
 
-### 2. Take a backup
+### 2. Take a backup (PostgreSQL)
 
 Go to the **Backup** tab.
 
@@ -145,7 +155,7 @@ When it finishes you'll see a `>> SUCCESS` line in the log with the final
 file size and duration, plus a notification if you've enabled those (see
 below).
 
-### 3. Restore a backup
+### 3. Restore a backup (PostgreSQL)
 
 Go to the **Restore** tab. This is the part worth reading carefully — a
 restore changes a real database.
@@ -200,7 +210,51 @@ If the target database doesn't exist yet on the server, use **Create Target
 DB** next to the target banner to create an empty one before restoring
 into it.
 
-### 4. Notifications
+### 4. Back up a SQL Server database
+
+Go to the **MSSQL Backup** tab. This runs `BACKUP DATABASE` straight over the
+connection — no `pg_dump`-style scoping here, since SQL Server's backup unit
+is always the *whole* database, in one file.
+
+1. Pick a **Profile** (only SQL Server–engine profiles show up in this list).
+2. Set the **Destination Root** (Browse, or use auto Y/M/D folders same as
+   the PostgreSQL tab). The full output path is previewed live.
+3. Click **Start Backup**. Progress comes straight from SQL Server's own
+   `WITH STATS` percentage messages, so the bar and ETA are accurate, not
+   estimated.
+
+**Where the file actually goes:** the `.bak` file is written by the **SQL
+Server engine process itself**, not by PgBackupManager — so the destination
+folder needs to be reachable by *that* process. For a local server this is
+trivial (any folder on the same machine SQL Server can write to). For a
+**remote** SQL Server profile, the destination must be a path that server's
+own service account can reach — typically a UNC share (`\\server\share\...`),
+not a folder that only exists on the PC running PgBackupManager.
+
+### 5. Restore a SQL Server database
+
+Go to the **MSSQL Restore** tab.
+
+1. **Browse** to a `.bak` file and pick the **target profile**. The same
+   green (local)/orange (remote) banner from the PostgreSQL Restore tab
+   applies here too — remote targets get the same UNC-path caveat as backup.
+2. Click **Analyze**. This reads the backup's own header
+   (`RESTORE HEADERONLY` / `FILELISTONLY`) — no restore happens yet — and
+   shows the original database name, when it was backed up, and how many
+   files it contains.
+3. Set **Restore as database name** (defaults to the backup's original name,
+   editable — e.g. to restore alongside an existing copy under a different
+   name). If that name already exists on the target server, you'll see a
+   warning and must tick **Overwrite existing (WITH REPLACE)** to proceed;
+   otherwise the restore is blocked before it starts.
+4. Click **Start Restore**. A confirmation dialog states the exact target and
+   whether an existing database will be replaced — remote targets get the
+   same insistent warning as the PostgreSQL tab. Data/log files are placed
+   automatically: onto the existing database's current files when
+   overwriting, or under the server's default data folder for a fresh
+   restore — no manual `MOVE` clause needed.
+
+### 6. Notifications
 
 **Settings → Notifications** controls two independent things that fire when
 a backup or restore finishes (success, failure, or error):
@@ -214,7 +268,7 @@ a backup or restore finishes (success, failure, or error):
 Use **SEND TEST NOTIFICATION** on the Settings page to preview both before
 committing to a duration.
 
-### 5. Retention cleanup
+### 7. Retention cleanup
 
 **Settings → Retention Policy** lets you set how many days of backups to
 keep under your Default Backup Root. It shows a live preview of how many
@@ -266,14 +320,29 @@ you're connecting to.
 with the *Directory (parallel)* format. Restore: parallel jobs and *Single
 transaction* can't be combined — PostgreSQL itself refuses that combination.
 
+**MSSQL Backup fails with "Cannot open backup device ... Access is denied"**
+— the destination folder isn't writable by the *SQL Server service account*
+(not your Windows user). Point the destination at a folder SQL Server itself
+already writes to (e.g. its own default Backup folder under
+`...\MSSQL\Backup\`), or grant that service account write access to your
+chosen folder.
+
+**MSSQL Restore fails with "backup set holds a backup of a database other
+than the existing X database"** — a database named exactly `X` already
+exists on the target and its identity doesn't match this backup. Tick
+**Overwrite existing (WITH REPLACE)** on the MSSQL Restore tab, or restore
+under a different **Restore as database name**.
+
 ---
 
 ## For developers
 
 ```
 PgBackupManager.Core/   No-UI engine — pg_dump/pg_restore process runners,
-                         Npgsql-based object inspectors/diffing, DPAPI secret
-                         store, settings, filename/retention logic.
+                         Npgsql-based object inspectors/diffing, native SQL
+                         Server BACKUP/RESTORE runners (Microsoft.Data.SqlClient,
+                         no external tool), DPAPI secret store, settings,
+                         filename/retention logic.
 PgBackupManager.UI/     WPF front-end (MVVM, CommunityToolkit.Mvvm), custom
                          theme, notification toast, Inno Setup installer
                          script under installer/.
