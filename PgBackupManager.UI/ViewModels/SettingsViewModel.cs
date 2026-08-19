@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -17,6 +19,13 @@ public partial class SettingsViewModel : ObservableObject
     private readonly SettingsStore _store = new();
 
     [ObservableProperty] private string _pgBinDirOverride = "";
+
+    // "Nothing installed at all" fallback, next to Quick Switch — fetches a
+    // client tools set directly instead of sending the user off to install
+    // PostgreSQL themselves. Same PgToolsDownloadDialog the version-mismatch
+    // guard (ConfirmDialog.ShowVersionMismatch) uses.
+    public IReadOnlyList<int> DownloadableVersions { get; } = PgToolsDownloader.SupportedMajorVersions;
+    [ObservableProperty] private int _selectedDownloadVersion = PgToolsDownloader.SupportedMajorVersions.FirstOrDefault();
 
     // Every complete PostgreSQL client install found on this machine (Program
     // Files roots + whatever's currently configured, even if it lives
@@ -111,6 +120,17 @@ public partial class SettingsViewModel : ObservableObject
             RetentionPreviewCount = RetentionPolicy.FindExpired(DefaultBackupRoot, RetentionDays, DateTime.Now).Count;
         }
         catch { RetentionPreviewCount = 0; }
+    }
+
+    [RelayCommand]
+    private void DownloadPgTools()
+    {
+        var dlg = new PgToolsDownloadDialog(SelectedDownloadVersion) { Owner = Application.Current?.MainWindow };
+        if (dlg.ShowDialog() == true && dlg.InstalledBinDir != null)
+        {
+            PgBinDirOverride = dlg.InstalledBinDir; // triggers OnPgBinDirOverrideChanged -> DetectTools()
+            StatusText = $"Downloaded PostgreSQL {SelectedDownloadVersion} client tools — click Save Settings to keep this.";
+        }
     }
 
     [RelayCommand]
