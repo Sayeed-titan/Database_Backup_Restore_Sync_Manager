@@ -31,6 +31,18 @@
                                       ItemsSource="{Binding DetectedInstalls}" SelectedItem="{Binding SelectedInstall}" DisplayMemberPath="Label"
                                       ToolTip="Every PostgreSQL client install found on this machine — pick one to fill in Bin Folder Override below." />
                         </Grid>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="DON'T HAVE IT?" Style="{StaticResource FieldLabel}" Margin="0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <ComboBox Grid.Column="1" Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                                      ItemsSource="{Binding DownloadableVersions}" SelectedItem="{Binding SelectedDownloadVersion}"
+                                      ToolTip="Fetch that major version's client tools straight from EnterpriseDB — no install, no admin rights." />
+                            <Button Grid.Column="2" Style="{StaticResource GhostButton}" Command="{Binding DownloadPgToolsCommand}" Content="DOWNLOAD" Margin="8,0,0,0" />
+                        </Grid>
                         <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120" />
