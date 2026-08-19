@@ -39,6 +39,11 @@ public static class PgToolsLocator
     {
         @"C:\Program Files\PostgreSQL",
         @"C:\Program Files (x86)\PostgreSQL",
+        // Where PgToolsDownloader installs a version fetched in-app (no admin
+        // rights needed, so it can't land under Program Files) — same
+        // "<root>\<version>\bin" layout as the two roots above, so it's
+        // picked up by every scan here with no other changes.
+        PgToolsDownloader.InstallRoot,
     };
 
     public static PgToolPaths Locate(string? manualBinDir = null)
