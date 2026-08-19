@@ -336,6 +336,22 @@
                         <ToggleButton x:Name="tb" Template="{StaticResource ComboToggle}"
                                       Focusable="False"
                                       IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" />
+                        <!-- Only relevant when IsEditable="True". The base template above (ComboToggle)
+                             has no PART_EditableTextBox of its own, so an editable ComboBox using this
+                             style previously had nowhere to render typed OR selected text — this part
+                             is what WPF's ComboBox class looks for by name and wires Text/selection sync
+                             to automatically; it must live directly in this template, not nested inside
+                             ComboToggle's separate template (different name scope, invisible to
+                             GetTemplateChild). Overlaid on top of ComboToggle's ContentPresenter, sized to
+                             leave the dropdown-arrow column (right 30px) clickable underneath it. -->
+                        <TextBox x:Name="PART_EditableTextBox"
+                                 Background="Transparent" BorderThickness="0"
+                                 Margin="11,8,30,8" Padding="0"
+                                 VerticalContentAlignment="Center"
+                                 FontFamily="{TemplateBinding FontFamily}" FontSize="{TemplateBinding FontSize}"
+                                 Foreground="{TemplateBinding Foreground}"
+                                 CaretBrush="{StaticResource Teal}"
+                                 Visibility="Collapsed" />
                         <Popup x:Name="PART_Popup" AllowsTransparency="True" Placement="Bottom"
                                IsOpen="{TemplateBinding IsDropDownOpen}" PopupAnimation="Slide" MinWidth="{TemplateBinding ActualWidth}">
                             <Border Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1"
@@ -349,6 +365,11 @@
                             </Border>
                         </Popup>
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
