@@ -49,6 +49,8 @@
             <!-- actions -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
                 <Button x:Name="CancelBtn" Style="{StaticResource GhostButton}" Click="CancelBtn_Click" Content="CANCEL" Padding="18,9" Margin="0,0,8,0" />
+                <!-- only shown by ShowVersionMismatch() when no already-installed version matches the server -->
+                <Button x:Name="DownloadBtn" Style="{StaticResource GhostButton}" Click="DownloadBtn_Click" Padding="18,9" Margin="0,0,8,0" Visibility="Collapsed" />
                 <Button x:Name="ConfirmBtn" Style="{StaticResource PrimaryButton}" Click="ConfirmBtn_Click" Padding="20,9">
                     <TextBlock x:Name="ConfirmBtnText" Text="YES, PROCEED" />
                 </Button>
