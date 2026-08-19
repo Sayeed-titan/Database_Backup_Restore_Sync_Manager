@@ -14,6 +14,10 @@ public partial class ConfirmDialog : Window
 {
     public bool Result { get; private set; }
 
+    // Set by ShowVersionMismatch() only, when no already-installed version
+    // matches the target server but PgToolsDownloader knows how to fetch one.
+    private int? _downloadMajorVersion;
+
     public ConfirmDialog()
     {
         InitializeComponent();
@@ -27,6 +31,25 @@ public partial class ConfirmDialog : Window
     private void CloseBtn_Click(object sender, RoutedEventArgs e) { Result = false; Close(); }
     private void CancelBtn_Click(object sender, RoutedEventArgs e) { Result = false; Close(); }
     private void ConfirmBtn_Click(object sender, RoutedEventArgs e) { Result = true; Close(); }
+
+    // Opens the download dialog as a nested modal; on success this dialog
+    // closes with Result=true too, same as picking an install to switch to,
+    // so the caller's "click Start again" messaging applies either way.
+    private void DownloadBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_downloadMajorVersion is not int major) return;
+
+        var dlg = new PgToolsDownloadDialog(major) { Owner = this };
+        if (dlg.ShowDialog() == true && dlg.InstalledBinDir != null)
+        {
+            var store = new SettingsStore();
+            var settings = store.Load();
+            settings.PgBinDirOverride = dlg.InstalledBinDir;
+            store.Save(settings);
+            Result = true;
+            Close();
+        }
+    }
 
     /// <summary>Yes/No style confirmation. Returns true only if the confirm button was clicked.</summary>
     public static bool Confirm(Window? owner, string title, string message, string confirmText = "Yes, proceed", bool danger = false)
@@ -65,13 +88,23 @@ public partial class ConfirmDialog : Window
             danger: true);
 
         var installs = PgToolsLocator.DetectAllInstalls(currentBinDir);
+        var matchingInstall = installs.FirstOrDefault(i => i.MajorVersion == serverMajor);
         dlg.InstallPicker.ItemsSource = installs;
-        dlg.InstallPicker.SelectedItem = installs.FirstOrDefault(i => i.MajorVersion == serverMajor) ?? installs.FirstOrDefault();
+        dlg.InstallPicker.SelectedItem = matchingInstall ?? installs.FirstOrDefault();
         dlg.InstallPickerPanel.Visibility = installs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         dlg.CancelBtn.Content = "CLOSE";
         dlg.ConfirmBtnText.Text = "SWITCH & SAVE";
         dlg.ConfirmBtn.IsEnabled = installs.Count > 0;
+
+        // No already-installed version matches the server — offer to fetch
+        // one directly instead of just pointing the user at Settings.
+        if (matchingInstall is null && PgBackupManager.Core.Services.PgToolsDownloader.IsVersionSupported(serverMajor))
+        {
+            dlg._downloadMajorVersion = serverMajor;
+            dlg.DownloadBtn.Content = $"DOWNLOAD PG {serverMajor}";
+            dlg.DownloadBtn.Visibility = Visibility.Visible;
+        }
 
         dlg.ShowDialog();
 
