@@ -5,7 +5,7 @@
         Width="440" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        ResizeMode="NoResize" ShowInTaskbar="False" FontFamily="{StaticResource FontUI}"
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True" FontFamily="{StaticResource FontUI}"
         TextOptions.TextFormattingMode="Ideal">
 
     <Border Background="White" CornerRadius="18" Padding="24" Margin="16">
@@ -52,7 +52,7 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
                 <Button x:Name="CancelBtn" Style="{StaticResource GhostButton}" Click="CancelBtn_Click" Content="CANCEL" Padding="18,9" Margin="0,0,8,0" />
                 <Button x:Name="StartBtn" Style="{StaticResource PrimaryButton}" Click="StartBtn_Click" Padding="20,9">
-                    <TextBlock Text="DOWNLOAD" />
+                    <TextBlock x:Name="StartBtnText" Text="DOWNLOAD" />
                 </Button>
             </StackPanel>
         </StackPanel>

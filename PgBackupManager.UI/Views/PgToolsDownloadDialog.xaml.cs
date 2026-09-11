@@ -18,6 +18,12 @@ public partial class PgToolsDownloadDialog : Window
 
     private readonly int _majorVersion;
     private CancellationTokenSource? _cts;
+    // True once the download+extract has actually finished — a second click
+    // on StartBtn (now relabelled "CONTINUE") just closes the dialog instead
+    // of starting another download. Without this the dialog previously
+    // closed itself the instant the download finished, with nothing on
+    // screen confirming it had actually worked.
+    private bool _downloadComplete;
 
     public PgToolsDownloadDialog(int majorVersion)
     {
@@ -40,6 +46,15 @@ public partial class PgToolsDownloadDialog : Window
 
     private async void StartBtn_Click(object sender, RoutedEventArgs e)
     {
+        // Second click, after a successful download — just close and hand
+        // InstalledBinDir back to the caller.
+        if (_downloadComplete)
+        {
+            Result = true;
+            Close();
+            return;
+        }
+
         StartBtn.IsEnabled = false;
         CloseXBtn.IsEnabled = false;
         ProgressPanel.Visibility = Visibility.Visible;
@@ -58,8 +73,15 @@ public partial class PgToolsDownloadDialog : Window
         try
         {
             InstalledBinDir = await PgToolsDownloader.DownloadAndInstallAsync(_majorVersion, progress, _cts.Token);
-            Result = true;
-            Close();
+
+            _downloadComplete = true;
+            PhaseText.Text = $"✓ Installed — {InstalledBinDir}";
+            SizeText.Text = "";
+            ProgressBarCtl.Value = 100;
+            StartBtnText.Text = "CONTINUE";
+            StartBtn.IsEnabled = true;
+            CloseXBtn.IsEnabled = true;
+            CancelBtn.Visibility = Visibility.Collapsed;
         }
         catch (OperationCanceledException)
         {

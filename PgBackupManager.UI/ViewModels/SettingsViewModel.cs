@@ -128,8 +128,17 @@ public partial class SettingsViewModel : ObservableObject
         var dlg = new PgToolsDownloadDialog(SelectedDownloadVersion) { Owner = Application.Current?.MainWindow };
         if (dlg.ShowDialog() == true && dlg.InstalledBinDir != null)
         {
+            // Persist immediately — "Download" should mean fully installed
+            // and active, not "downloaded but still needs a separate Save
+            // Settings click nothing told you about." Loads fresh from disk
+            // (not the in-memory VM) so this doesn't also flush whatever
+            // OTHER unsaved edits happen to be sitting in the form.
+            var settings = _store.Load();
+            settings.PgBinDirOverride = dlg.InstalledBinDir;
+            _store.Save(settings);
+
             PgBinDirOverride = dlg.InstalledBinDir; // triggers OnPgBinDirOverrideChanged -> DetectTools()
-            StatusText = $"Downloaded PostgreSQL {SelectedDownloadVersion} client tools — click Save Settings to keep this.";
+            StatusText = $"Installed PostgreSQL {SelectedDownloadVersion} client tools and switched to them — ready to use.";
         }
     }
 
