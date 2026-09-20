@@ -57,6 +57,11 @@ public partial class SchemaFilterItem : ObservableObject
 
     [ObservableProperty] private bool _isChecked = true;
     partial void OnIsCheckedChanged(bool value) => Toggled?.Invoke(this);
+
+    // Plain-SQL restore only: restore this schema's objects under a
+    // different target schema name (text-substitution rename — see
+    // PlainSqlSchemaFilter). Defaults to Name itself, i.e. no rename.
+    [ObservableProperty] private string _renameTo = "";
 }
 
 public partial class RestoreViewModel : ObservableObject
@@ -75,6 +80,14 @@ public partial class RestoreViewModel : ObservableObject
     [ObservableProperty] private string _statusText = "Pick a backup file and a target profile, then 'Analyze'.";
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _canCancel;
+
+    // pg_restore can only read custom/directory/tar archives — a plain-text
+    // .sql dump has no TOC at all, so the whole diff/schema-pick UI below
+    // doesn't apply. When true, Start Restore runs the file through psql
+    // instead, and the TOC-only sections of the view collapse.
+    [ObservableProperty] private bool _isPlainSqlMode;
+    public bool ShowDiffUi => !IsPlainSqlMode;
+    partial void OnIsPlainSqlModeChanged(bool value) => OnPropertyChanged(nameof(ShowDiffUi));
 
     // Restore target display (where pg_restore will WRITE)
     [ObservableProperty] private string _restoreTargetText = "(no profile selected)";
@@ -176,7 +189,11 @@ public partial class RestoreViewModel : ObservableObject
     // if the Default Restore Source folder is shared — must not leave a stale
     // schema selection sitting there for Start Restore to blindly reuse
     // against the new file.
-    partial void OnBackupFileChanged(string value) => InvalidateAnalysis();
+    partial void OnBackupFileChanged(string value)
+    {
+        InvalidateAnalysis();
+        UpdatePlainSqlMode();
+    }
 
     private void InvalidateAnalysis()
     {
@@ -187,6 +204,22 @@ public partial class RestoreViewModel : ObservableObject
         NewCount = ExistingCount = MissingCount = SelectedCount = WillRestoreCount = 0;
         ChangesCount = 0; ChangesDetail = ""; ChangesBrush = Brushes.Gray;
         NewBreakdown = ExistingBreakdown = MissingBreakdown = "";
+    }
+
+    // Runs on every file pick — cheap (reads a handful of bytes) — so the
+    // "this is a plain SQL file, restore goes through psql" banner shows up
+    // immediately, without waiting on a target profile or an Analyze click.
+    private void UpdatePlainSqlMode()
+    {
+        if (string.IsNullOrWhiteSpace(BackupFile) || (!File.Exists(BackupFile) && !Directory.Exists(BackupFile)))
+        {
+            IsPlainSqlMode = false;
+            return;
+        }
+
+        IsPlainSqlMode = BackupFormatDetector.Detect(BackupFile) == RestoreFileFormat.PlainSql;
+        if (IsPlainSqlMode)
+            StatusText = "Plain-text SQL file detected — pg_restore can't read this format (no TOC), so there's no per-object diff/selection here. Start Restore will run the whole file through psql.";
     }
 
     private void UpdateTargetDisplay()
@@ -311,21 +344,42 @@ public partial class RestoreViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(BackupFile) || (!File.Exists(BackupFile) && !Directory.Exists(BackupFile))) { StatusText = "Pick a valid backup file."; return; }
         if (SelectedProfile is null) { StatusText = "Pick a target profile."; return; }
 
-        var settings = _settingsStore.Load();
-        var tools = PgToolsLocator.Locate(settings.PgBinDirOverride);
-        if (string.IsNullOrEmpty(tools.PgRestore)) { StatusText = "pg_restore.exe not found. Configure it in Settings."; return; }
+        Task<IReadOnlyList<TocEntry>> tocTask;
+        if (IsPlainSqlMode)
+        {
+            StatusText = "Scanning plain-text SQL file for pg_dump's per-object schema comments...";
+            tocTask = PlainSqlInspector.InspectAsync(BackupFile);
+        }
+        else
+        {
+            var settings = _settingsStore.Load();
+            var tools = PgToolsLocator.Locate(settings.PgBinDirOverride);
+            if (string.IsNullOrEmpty(tools.PgRestore)) { StatusText = "pg_restore.exe not found. Configure it in Settings."; return; }
+            StatusText = $"Parsing backup TOC and querying '{SelectedProfile.Database}'...";
+            tocTask = BackupInspector.InspectAsync(tools.PgRestore!, BackupFile);
+        }
 
         IsBusy = true;
         try
         {
-            StatusText = $"Parsing backup TOC and querying '{SelectedProfile.Database}'...";
-            var tocTask = BackupInspector.InspectAsync(tools.PgRestore!, BackupFile);
             var pwd = SecretProtector.Unprotect(SelectedProfile.EncryptedPasswordBase64);
             var liveTask = DbObjectInspector.InspectAsync(SelectedProfile.BuildConnectionString(pwd));
 
             await Task.WhenAll(tocTask, liveTask);
             _allToc = await tocTask;
             var live = await liveTask;
+
+            // Not every plain-text .sql is a pg_dump output — a hand-written script
+            // or a very old/customized dump may carry none of the "-- Name: ...;
+            // Schema: ..." comments PlainSqlInspector looks for. Rather than show an
+            // empty, misleading diff, fall back to "no selection possible" and let
+            // Start Restore run the whole file as-is.
+            if (IsPlainSqlMode && _allToc.Count == 0)
+            {
+                InvalidateAnalysis();
+                StatusText = "No pg_dump '-- Name: ...; Schema: ...' comments found in this file — per-schema selection isn't available here. Start Restore will run the whole file through psql.";
+                return;
+            }
 
             var diff = ObjectDiffer.Diff(_allToc, live);
 
@@ -355,8 +409,11 @@ public partial class RestoreViewModel : ObservableObject
             ApplyFilter();
             UpdateSelectedCount();
             UpdateWillRestore();
-            StatusText = $"Backup has {_allToc.Count} TOC entries · {NewCount} new, {ExistingCount} existing, {MissingCount} missing-from-backup. " +
-                         $"FULL restore of ticked schema(s) into '{SelectedProfile.Database}' @ {SelectedProfile.Host} — all objects + data.";
+            StatusText = IsPlainSqlMode
+                ? $"Plain-text SQL file has {_allToc.Count} schema-scoped entries (best-effort, from pg_dump's comments — no real TOC) · {NewCount} new, {ExistingCount} existing, {MissingCount} missing-from-backup. " +
+                  $"Tick schema(s) to restore, then Start Restore (runs via psql)."
+                : $"Backup has {_allToc.Count} TOC entries · {NewCount} new, {ExistingCount} existing, {MissingCount} missing-from-backup. " +
+                  $"FULL restore of ticked schema(s) into '{SelectedProfile.Database}' @ {SelectedProfile.Host} — all objects + data.";
         }
         catch (Exception ex)
         {
@@ -411,6 +468,7 @@ public partial class RestoreViewModel : ObservableObject
                 Total = g.Count(),
                 NewCount = g.Count(r => r.Status == DiffStatus.NewInBackup),
                 IsChecked = true,
+                RenameTo = g.Key,
             };
             item.Toggled = OnSchemaToggled;
             BackupSchemas.Add(item);
@@ -524,6 +582,12 @@ public partial class RestoreViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(BackupFile) || (!File.Exists(BackupFile) && !Directory.Exists(BackupFile))) { StatusText = "Pick a backup file."; return; }
         if (SelectedProfile is null) { StatusText = "Pick a target profile."; return; }
+
+        if (IsPlainSqlMode)
+        {
+            await StartPlainSqlRestoreAsync();
+            return;
+        }
 
         // FULL-FIDELITY restore driven by the "Schemas to restore" checkboxes.
         // pg_restore replays the WHOLE schema (tables, data, indexes, constraints,
@@ -726,6 +790,195 @@ public partial class RestoreViewModel : ObservableObject
             _elapsedTimer?.Stop();
             IsBusy = false; CanCancel = false;
             _cts?.Dispose(); _cts = null;
+        }
+    }
+
+    // Plain-text SQL dump path — no binary TOC, so no --clean/--no-owner/
+    // --no-privileges/--jobs (those are pg_restore-only flags), and psql runs
+    // the file instead of pg_restore. Schema selection IS still available
+    // when Analyze found pg_dump's "-- Name: ...; Schema: ..." comments
+    // (BackupSchemas gets populated the same way as the archive path): in
+    // that case the file is filtered down to the ticked schemas first
+    // (PlainSqlSchemaFilter) and their schemas are created up front, exactly
+    // like the pg_restore --schema path does. If no such comments were found
+    // (hand-written script, unusual dump), there's nothing to filter on, so
+    // the whole file runs as-is.
+    private async Task StartPlainSqlRestoreAsync()
+    {
+        var usingSchemaFilter = _allToc.Count > 0;
+        var ticked = new List<string>();
+        var schemaTargets = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (usingSchemaFilter)
+        {
+            if (BackupSchemas.Count == 0) { StatusText = "Run Analyze first."; return; }
+            var tickedItems = BackupSchemas.Where(s => s.IsChecked).ToList();
+            if (tickedItems.Count == 0) { StatusText = "Tick at least one schema to restore."; return; }
+            ticked = tickedItems.Select(s => s.Name).ToList();
+            foreach (var s in tickedItems)
+                schemaTargets[s.Name] = string.IsNullOrWhiteSpace(s.RenameTo) ? s.Name : s.RenameTo.Trim();
+        }
+        var hasRenames = schemaTargets.Any(kv => !string.Equals(kv.Key, kv.Value, StringComparison.Ordinal));
+        var allTicked = usingSchemaFilter && ticked.Count == BackupSchemas.Count && !hasRenames;
+        var schemasInvolved = usingSchemaFilter
+            ? string.Join(", ", ticked.OrderBy(s => s).Select(s => string.Equals(s, schemaTargets[s], StringComparison.Ordinal) ? s : $"{s} → {schemaTargets[s]}"))
+            : "";
+
+        var settings = _settingsStore.Load();
+        var tools = PgToolsLocator.Locate(settings.PgBinDirOverride);
+        if (string.IsNullOrEmpty(tools.Psql)) { StatusText = "psql.exe not found. Configure it in Settings."; return; }
+
+        var pwd = SecretProtector.Unprotect(SelectedProfile!.EncryptedPasswordBase64);
+        var isLocal = SelectedProfile.Host.Trim().ToLowerInvariant() is "localhost" or "127.0.0.1" or "::1" or ".";
+
+        if (tools.MajorVersion.HasValue)
+        {
+            var serverMajor = await DatabaseAdmin.GetServerMajorVersionAsync(SelectedProfile, pwd);
+            if (serverMajor.HasValue && tools.MajorVersion.Value > serverMajor.Value)
+            {
+                var switched = ConfirmDialog.ShowVersionMismatch(
+                    Application.Current?.MainWindow, "psql", tools.Version ?? "?", serverMajor.Value, settings.PgBinDirOverride);
+                StatusText = switched
+                    ? "Switched PostgreSQL client tools — click Start Restore again to retry."
+                    : $"Blocked — psql {tools.Version} is newer than the server (PostgreSQL {serverMajor}.x).";
+                return;
+            }
+        }
+
+        var scopeText = usingSchemaFilter
+            ? (allTicked
+                ? $"Restoring ALL schemas found in the file: {schemasInvolved}\n(filtered by pg_dump's own comments — no real TOC, so this is best-effort)\n\n"
+                : $"Restoring {ticked.Count} schema(s): {schemasInvolved}\n(filtered by pg_dump's own comments — no real TOC, so this is best-effort. " +
+                  "Cross-schema references — e.g. a foreign key into a schema you didn't tick — will fail.)\n\n")
+            : "No schema markers found in this file — the ENTIRE file will be executed via psql, statement by statement.\n\n";
+
+        if (hasRenames)
+            scopeText += "⚠ Renaming: object definitions are rewritten by text substitution (replace the old schema name with the new one, word-boundary matched) — " +
+                         "not a real Postgres rename. A stored text value that happens to equal the old schema name verbatim would also get rewritten.\n\n";
+
+        var confirmed = ConfirmDialog.Confirm(
+            Application.Current?.MainWindow,
+            isLocal ? "Confirm SQL script restore" : "⚠ Confirm SQL script restore to REMOTE server",
+            $"Plain-text SQL file: {Path.GetFileName(BackupFile)}\n\n" +
+            "This isn't a pg_restore archive, so there's no per-object diff/selection table — just schemas.\n\n" +
+            scopeText +
+            $"INTO target database:\n" +
+            $"   {SelectedProfile.Database} @ {SelectedProfile.Host}:{SelectedProfile.Port}\n" +
+            $"   (user: {SelectedProfile.Username})\n" +
+            $"   {(isLocal ? "✓ LOCAL target — safe." : "⚠ REMOTE / network target!")}\n\n" +
+            (SingleTransaction
+                ? "'Single transaction' is ON — any error rolls back the whole script.\n\n"
+                : "'Single transaction' is OFF — psql still stops at the first error, but any statements already run before it stay committed.\n\n") +
+            "Proceed?",
+            confirmText: isLocal ? "Yes, restore" : "Yes, restore to remote",
+            danger: !isLocal);
+        if (!confirmed) { StatusText = "Restore cancelled."; return; }
+
+        LogLines.Clear();
+        AppendLog($">> psql · plain-text SQL restore · file: {BackupFile}");
+        if (usingSchemaFilter) AppendLog($">> schemas: {schemasInvolved}{(allTicked ? " (all — running file as-is)" : "")}");
+        AppendLog($">> TARGET: {SelectedProfile.Database} @ {SelectedProfile.Host}:{SelectedProfile.Port} (user {SelectedProfile.Username})");
+        AppendLog($">> options: single-tx={SingleTransaction}");
+
+        _cts = new CancellationTokenSource();
+        IsBusy = true; CanCancel = true;
+        StatusText = "Running psql...";
+        HasProgress = false; ProgressPercent = 0; ElapsedText = "00:00"; EtaText = "";
+
+        _stopwatch = Stopwatch.StartNew();
+        _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _elapsedTimer.Tick += OnElapsedTick;
+        _elapsedTimer.Start();
+
+        string sqlFileToRun = BackupFile;
+        string? tempFilteredFile = null;
+
+        try
+        {
+            var applyingSchemaFilter = usingSchemaFilter && !allTicked;
+            if (applyingSchemaFilter)
+            {
+                var targetSchemaNames = schemaTargets.Values.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                AppendLog(">> ensuring target schema(s) exist: " + string.Join(", ", targetSchemaNames));
+                var (schemasOk, schemaMsg) = await DatabaseAdmin.EnsureSchemasExistAsync(SelectedProfile, pwd, targetSchemaNames, _cts.Token);
+                if (!schemasOk)
+                {
+                    AppendLog($">> ERROR creating schema(s): {schemaMsg}");
+                    StatusText = $"Could not create target schema(s): {schemaMsg}";
+                    return;
+                }
+            }
+
+            // Always routed through the filter, even when restoring the whole
+            // file untouched by schema selection — it also strips the
+            // "SET transaction_timeout = 0;" line pg_dump 17+ writes into every
+            // plain-text dump's preamble, which an older target server (e.g.
+            // PG15) rejects outright before a single object restores.
+            AppendLog(applyingSchemaFilter
+                ? ">> filtering SQL file down to ticked schema(s)" + (hasRenames ? " and applying rename(s)..." : "...")
+                : ">> sanitizing SQL file for cross-version compatibility...");
+            tempFilteredFile = await PlainSqlSchemaFilter.FilterToTempFileAsync(
+                BackupFile,
+                applyingSchemaFilter ? schemaTargets : new Dictionary<string, string>(),
+                _cts.Token);
+            sqlFileToRun = tempFilteredFile;
+
+            var runner = new PsqlRestoreRunner();
+            runner.Process.StdoutLine += OnLogLine;
+            runner.Process.StderrLine += OnLogLine;
+
+            var opts = new PsqlRestoreOptions
+            {
+                Host = SelectedProfile.Host,
+                Port = SelectedProfile.Port,
+                Database = SelectedProfile.Database,
+                Username = SelectedProfile.Username,
+                SqlFile = sqlFileToRun,
+                SingleTransaction = SingleTransaction,
+            };
+
+            var exit = await runner.RunAsync(tools.Psql!, opts, pwd, _cts.Token);
+
+            runner.Process.StdoutLine -= OnLogLine;
+            runner.Process.StderrLine -= OnLogLine;
+
+            _elapsedTimer.Stop();
+            ElapsedText = FormatDuration(_stopwatch.Elapsed);
+
+            if (exit == 0)
+            {
+                AppendLog($">> SUCCESS · took {ElapsedText}");
+                var doneMsg = $"Restore completed into '{opts.Database}' @ {opts.Host}. (took {ElapsedText})";
+                StatusText = doneMsg;
+                NotificationService.NotifyCompletion("Restore complete", doneMsg, success: true);
+
+                if (usingSchemaFilter)
+                {
+                    AppendLog(">> re-analyzing target...");
+                    await AnalyzeAsync();
+                    StatusText = $"{doneMsg} {StatusText}";
+                }
+            }
+            else
+            {
+                AppendLog($">> psql exited with code {exit}");
+                StatusText = $"psql failed (exit {exit}). See log.";
+                NotificationService.NotifyCompletion("Restore failed", StatusText, success: false);
+            }
+        }
+        catch (OperationCanceledException) { AppendLog(">> Cancelled."); StatusText = "Cancelled."; }
+        catch (Exception ex)
+        {
+            AppendLog($">> ERROR: {ex.Message}");
+            StatusText = $"ERROR: {ex.Message}";
+            NotificationService.NotifyCompletion("Restore error", StatusText, success: false);
+        }
+        finally
+        {
+            _elapsedTimer?.Stop();
+            IsBusy = false; CanCancel = false;
+            _cts?.Dispose(); _cts = null;
+            if (tempFilteredFile != null && File.Exists(tempFilteredFile))
+                try { File.Delete(tempFilteredFile); } catch { }
         }
     }
 

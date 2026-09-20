@@ -107,13 +107,26 @@
                     </Grid>
                 </Border>
 
+                <!-- Plain-text SQL banner (no TOC — pg_restore can't read this format at all) -->
+                <Border Background="{StaticResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,0,0,12"
+                        Visibility="{Binding IsPlainSqlMode, Converter={StaticResource BoolToVisible}}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"
+                              Fill="{StaticResource Teal}" Data="M12 2 L4 5 v6 c0 5 3.5 8 8 9 c4.5 -1 8 -4 8 -9 V5 Z M10.5 13.5 L8 11 l-1.3 1.3 L10.5 16 L17 9.5 L15.7 8.2 Z" />
+                        <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{StaticResource Secondary}" TextWrapping="Wrap">
+                            <Run Text="Plain-text SQL file — restored via psql:" FontWeight="Bold" />
+                            <Run Text="pg_restore can't read this format (no real TOC). Click Analyze — schema selection below is inferred from pg_dump's own '-- Schema: ...' comments on a best-effort basis, then Start Restore runs the (optionally filtered) file through psql instead of pg_restore." />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
                 <!-- Restore options -->
                 <WrapPanel Margin="0,0,0,12">
                     <CheckBox Style="{StaticResource DesignCheck}" Content="Single transaction (rollback on error)" IsChecked="{Binding SingleTransaction}" Margin="0,0,18,0" />
-                    <CheckBox Style="{StaticResource DesignCheck}" Content="Drop existing first (--clean --if-exists)" IsChecked="{Binding CleanFirst}" Margin="0,0,18,0" />
-                    <CheckBox Style="{StaticResource DesignCheck}" Content="--no-owner" IsChecked="{Binding NoOwner}" Margin="0,0,18,0" />
-                    <CheckBox Style="{StaticResource DesignCheck}" Content="--no-privileges" IsChecked="{Binding NoPrivileges}" Margin="0,0,18,0" />
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                    <CheckBox Style="{StaticResource DesignCheck}" Content="Drop existing first (--clean --if-exists)" IsChecked="{Binding CleanFirst}" IsEnabled="{Binding ShowDiffUi}" Margin="0,0,18,0" />
+                    <CheckBox Style="{StaticResource DesignCheck}" Content="--no-owner" IsChecked="{Binding NoOwner}" IsEnabled="{Binding ShowDiffUi}" Margin="0,0,18,0" />
+                    <CheckBox Style="{StaticResource DesignCheck}" Content="--no-privileges" IsChecked="{Binding NoPrivileges}" IsEnabled="{Binding ShowDiffUi}" Margin="0,0,18,0" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding ShowDiffUi}"
                                 ToolTip="pg_restore --jobs=N — runs N workers in parallel for faster restores. Postgres refuses this together with 'Single transaction', so untick that first.">
                         <TextBlock Text="Parallel jobs" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding ParallelJobs, UpdateSourceTrigger=LostFocus}" />
@@ -131,7 +144,16 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <CheckBox Style="{StaticResource DesignCheck}" Content="{Binding Label}" IsChecked="{Binding IsChecked, Mode=TwoWay}" Margin="0,3,18,3" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,18,3">
+                                        <CheckBox Style="{StaticResource DesignCheck}" Content="{Binding Label}" IsChecked="{Binding IsChecked, Mode=TwoWay}" VerticalAlignment="Center" />
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0"
+                                                    Visibility="{Binding DataContext.IsPlainSqlMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisible}}">
+                                            <TextBlock Text="restore as" FontSize="10.5" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                            <TextBox Style="{StaticResource InputBox}" Width="160" FontSize="11.5" Padding="6,3"
+                                                     Text="{Binding RenameTo, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="Restore this schema's objects under a different target schema name — text-substitution rename (plain-SQL restore only, best-effort). Leave as the original name for no rename." />
+                                        </StackPanel>
+                                    </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
