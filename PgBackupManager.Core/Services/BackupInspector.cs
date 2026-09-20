@@ -87,11 +87,25 @@ public static class BackupInspector
 
         using var proc = Process.Start(psi)!;
         var lines = new List<string>();
-        string? line;
-        while ((line = await proc.StandardOutput.ReadLineAsync(ct)) != null)
-            lines.Add(line);
+        var stdoutTask = Task.Run(async () =>
+        {
+            string? line;
+            while ((line = await proc.StandardOutput.ReadLineAsync(ct)) != null)
+                lines.Add(line);
+        }, ct);
+        var stderrTask = proc.StandardError.ReadToEndAsync(ct);
 
+        await Task.WhenAll(stdoutTask, stderrTask);
         await proc.WaitForExitAsync(ct);
+
+        if (proc.ExitCode != 0)
+        {
+            var stderr = stderrTask.Result.Trim();
+            throw new InvalidOperationException(string.IsNullOrEmpty(stderr)
+                ? $"pg_restore --list failed with exit code {proc.ExitCode}."
+                : $"pg_restore --list failed: {stderr}");
+        }
+
         return Parse(lines);
     }
 }
