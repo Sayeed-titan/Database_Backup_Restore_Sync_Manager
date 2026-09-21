@@ -55,7 +55,7 @@ backups work — it makes the process visible and hard to get wrong:
 
 ### Option A — Installer (recommended)
 
-Download **[`installer/dist/PgBackupManager-Setup-2.2.0.exe`](installer/dist/PgBackupManager-Setup-2.2.0.exe)**
+Download **[`installer/dist/PgBackupManager-Setup-2.4.0.exe`](installer/dist/PgBackupManager-Setup-2.4.0.exe)**
 from this repo and run it. It installs the app with a Start Menu shortcut
 and an uninstaller — nothing else on the machine is required to *run*
 PgBackupManager itself (the .NET runtime is bundled inside the installer).
@@ -209,6 +209,14 @@ restore changes a real database.
 If the target database doesn't exist yet on the server, use **Create Target
 DB** next to the target banner to create an empty one before restoring
 into it.
+
+**Plain-text `.sql` dumps** (as opposed to the custom/directory/tar archive
+formats) have no table of contents, so `pg_restore` can't read them at all —
+the app detects this automatically the moment you pick the file, shows a
+banner explaining it, and skips straight to running the whole file through
+`psql` when you click **Start Restore**. There's no per-object diff/selection
+in this mode (there's no TOC to diff), but the same target-safety checks,
+confirmation dialog, and live output log still apply.
 
 ### 4. Back up a SQL Server database
 
