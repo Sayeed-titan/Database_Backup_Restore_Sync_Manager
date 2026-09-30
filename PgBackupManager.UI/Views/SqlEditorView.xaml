@@ -322,9 +322,72 @@
                             </Grid>
                         </Border>
                         <Grid Grid.Row="1">
-                            <DataGrid x:Name="ResultGrid" Style="{StaticResource DesignGrid}" ItemsSource="{Binding SelectedResult.View}" BorderThickness="0"
-                                      AutoGeneratingColumn="ResultGrid_AutoGeneratingColumn" CanUserSortColumns="True" />
-                            <ListBox ItemsSource="{Binding Messages}" Background="{DynamicResource TermBg}" BorderThickness="0" Padding="8,6"
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <DataGrid x:Name="ResultGrid" Style="{StaticResource DesignGrid}" ItemsSource="{Binding SelectedResult.PageView}" BorderThickness="0"
+                                      AutoGeneratingColumn="ResultGrid_AutoGeneratingColumn" CanUserSortColumns="True"
+                                      HeadersVisibility="All" RowHeaderWidth="NaN" LoadingRow="ResultGrid_LoadingRow"
+                                      ToolTip="Column sorting orders the current page only — use ORDER BY to sort the whole result.">
+                                <DataGrid.RowHeaderStyle>
+                                    <Style TargetType="DataGridRowHeader">
+                                        <Setter Property="Background" Value="{DynamicResource CardSubtle}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+                                        <Setter Property="FontFamily" Value="{StaticResource FontMono}" />
+                                        <Setter Property="FontSize" Value="10.5" />
+                                        <Setter Property="Padding" Value="8,0" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}" />
+                                        <Setter Property="BorderThickness" Value="0,0,1,0" />
+                                    </Style>
+                                </DataGrid.RowHeaderStyle>
+                            </DataGrid>
+
+                            <!-- pager -->
+                            <Border Grid.Row="1" Background="{DynamicResource CardSubtle}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,1,0,0" Padding="8,4"
+                                    CornerRadius="0,0,10,10" DataContext="{Binding SelectedResult}"
+                                    Visibility="{Binding Converter={StaticResource NullToCollapsed}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource PillButton}" Command="{Binding FirstCommand}" Padding="7,2" Margin="0,0,3,0" ToolTip="First page">
+                                            <Path Width="9" Height="9" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2.2" Data="M18 6 L12 12 L18 18 M8 6 V18" />
+                                        </Button>
+                                        <Button Style="{StaticResource PillButton}" Command="{Binding PrevCommand}" Padding="7,2" Margin="0,0,8,0" ToolTip="Previous page">
+                                            <Path Width="9" Height="9" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2.2" Data="M15 6 L9 12 L15 18" />
+                                        </Button>
+                                        <TextBlock Text="{Binding PageText}" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource Body}" VerticalAlignment="Center" MinWidth="96" TextAlignment="Center" />
+                                        <Button Style="{StaticResource PillButton}" Command="{Binding NextCommand}" Padding="7,2" Margin="8,0,3,0" ToolTip="Next page (fetches more rows from the server when needed)">
+                                            <Path Width="9" Height="9" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2.2" Data="M9 6 L15 12 L9 18" />
+                                        </Button>
+                                        <Button Style="{StaticResource PillButton}" Command="{Binding LastCommand}" Padding="7,2" ToolTip="Last fetched page">
+                                            <Path Width="9" Height="9" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2.2" Data="M6 6 L12 12 L6 18 M16 6 V18" />
+                                        </Button>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+                                        <TextBlock Text="Rows / page" FontSize="10.5" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" FontSize="11" Width="78"
+                                                  ItemsSource="{x:Static vm:ResultSetVm.PageSizes}" SelectedItem="{Binding PageSize}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+                                        <TextBlock Text="{Binding RangeText}" FontSize="11" Foreground="{DynamicResource Secondary}" VerticalAlignment="Center" />
+                                        <ctrl:Spinner Width="11" Height="11" Stroke="{DynamicResource Teal}" Margin="8,0,0,0" Visibility="{Binding IsFetching, Converter={StaticResource BoolToVisible}}" />
+                                        <TextBlock Text="{Binding Note}" FontSize="10.5" Foreground="{DynamicResource StatusAmber}" VerticalAlignment="Center" Margin="8,0,0,0" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource PillButton}" Command="{Binding LoadMoreCommand}" Content="LOAD MORE" Padding="8,3" Margin="0,0,4,0"
+                                                Visibility="{Binding HasMoreOnServer, Converter={StaticResource BoolToVisible}}" ToolTip="Fetch the next chunk of rows from the server" />
+                                        <Button Style="{StaticResource PillButton}" Command="{Binding CountCommand}" Content="COUNT ALL" Padding="8,3"
+                                                Visibility="{Binding HasMoreOnServer, Converter={StaticResource BoolToVisible}}" ToolTip="Run COUNT(*) over this query to get the exact total" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <ListBox Grid.RowSpan="2" ItemsSource="{Binding Messages}" Background="{DynamicResource TermBg}" BorderThickness="0" Padding="8,6"
                                      Visibility="{Binding ShowMessages, Converter={StaticResource BoolToVisible}}"
                                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
                                 <ListBox.ItemTemplate>

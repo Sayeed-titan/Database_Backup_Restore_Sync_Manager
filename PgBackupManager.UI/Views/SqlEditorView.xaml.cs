@@ -115,6 +115,13 @@ public partial class SqlEditorView : UserControl
         e.Column.SortMemberPath = name;
     }
 
+    // Absolute row number (page offset + position), so page 3 starts at 1,001 not 1.
+    private void ResultGrid_LoadingRow(object? sender, DataGridRowEventArgs e)
+    {
+        var start = Vm.SelectedTab?.SelectedResult?.PageStart ?? 0;
+        e.Row.Header = (start + e.Row.GetIndex() + 1).ToString("N0");
+    }
+
     private void ResultChip_Click(object sender, MouseButtonEventArgs e)
     {
         if (Vm.SelectedTab != null) Vm.SelectedTab.ShowMessages = false;
