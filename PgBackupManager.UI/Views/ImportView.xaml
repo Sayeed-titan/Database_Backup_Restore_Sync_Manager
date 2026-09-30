@@ -74,12 +74,21 @@
                     </Border>
                 </Grid>
 
-                <Button Style="{StaticResource GhostButton}" Command="{Binding LoadTablesCommand}" HorizontalAlignment="Left" Margin="0,0,0,16" Padding="16,8">
-                    <StackPanel Orientation="Horizontal">
-                        <ctrl:Spinner Width="12" Height="12" Margin="0,0,7,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
-                        <TextBlock Text="Load Tables" VerticalAlignment="Center" />
-                    </StackPanel>
-                </Button>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                    <Button Style="{StaticResource GhostButton}" Command="{Binding LoadTablesCommand}" Padding="16,8" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <ctrl:Spinner Width="12" Height="12" Margin="0,0,7,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                            <TextBlock Text="Load Tables" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource GhostButton}" Command="{Binding CompareCommand}" Padding="16,8"
+                            ToolTip="Compare table/column/row counts between source and target right now, without running an import.">
+                        <StackPanel Orientation="Horizontal">
+                            <ctrl:Spinner Width="12" Height="12" Margin="0,0,7,0" Visibility="{Binding IsComparing, Converter={StaticResource BoolToVisible}}" />
+                            <TextBlock Text="Compare Report" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
 
                 <!-- Tables -->
                 <Border Style="{StaticResource Card}" Padding="16" Margin="0,0,0,16">
@@ -134,6 +143,144 @@
                             <Run Text="One-way, source is read-only:" FontWeight="Bold" />
                             <Run Text="the SQL Server side is never modified. Column types are best-effort mapped — spot-check anything flagged in the log after a real run." />
                         </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Compare report -->
+                <Border Style="{StaticResource Card}" Padding="16" Margin="0,0,0,16" Visibility="{Binding HasCompareResult, Converter={StaticResource BoolToVisible}}">
+                    <StackPanel>
+                        <TextBlock Text="COMPARE REPORT — source vs target" Style="{StaticResource CardTitle}" Margin="0,0,0,10" />
+
+                        <!-- Summary cards -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,0,6,0">
+                                <StackPanel>
+                                    <TextBlock Text="TABLES  (SRC / TGT)" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
+                                    <TextBlock FontSize="20" FontWeight="Bold" Foreground="{StaticResource Navy}">
+                                        <Run Text="{Binding CompareSourceTables, Mode=OneWay}" />
+                                        <Run Text=" / " Foreground="{StaticResource Muted}" FontSize="14" />
+                                        <Run Text="{Binding CompareTargetTables, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="3,0">
+                                <StackPanel>
+                                    <TextBlock Text="TOTAL ROWS  (SRC / TGT)" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
+                                    <TextBlock FontSize="20" FontWeight="Bold" Foreground="{StaticResource Navy}">
+                                        <Run Text="{Binding CompareSourceRows, Mode=OneWay, StringFormat=N0}" />
+                                        <Run Text=" / " Foreground="{StaticResource Muted}" FontSize="14" />
+                                        <Run Text="{Binding CompareTargetRows, Mode=OneWay, StringFormat=N0}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Background="White" BorderBrush="SeaGreen" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Margin="3,0">
+                                <StackPanel>
+                                    <TextBlock Text="% MATCHED" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
+                                    <TextBlock FontSize="20" FontWeight="Bold" Foreground="SeaGreen">
+                                        <Run Text="{Binding CompareMatchedPercent, Mode=OneWay, StringFormat={}{0}%}" />
+                                        <Run Text=" " />
+                                        <Run FontSize="11" Foreground="{StaticResource Muted}" Text="{Binding CompareMatchedCount, Mode=OneWay, StringFormat=({0})}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="3" Background="White" BorderBrush="IndianRed" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Margin="6,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="% NOT MATCHED" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
+                                    <TextBlock FontSize="20" FontWeight="Bold" Foreground="IndianRed">
+                                        <Run Text="{Binding CompareMismatchedPercent, Mode=OneWay, StringFormat={}{0}%}" />
+                                        <Run Text=" " />
+                                        <Run FontSize="11" Foreground="{StaticResource Muted}" Text="{Binding CompareMismatchedCount, Mode=OneWay, StringFormat=({0})}" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Filter toggles + search -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
+                                <CheckBox Style="{StaticResource DesignCheck}" Content="Matched" IsChecked="{Binding ShowCompareMatched}" Margin="0,0,14,0" />
+                                <CheckBox Style="{StaticResource DesignCheck}" Content="Not matched" IsChecked="{Binding ShowCompareMismatched}" />
+                            </StackPanel>
+                            <Border Grid.Column="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8" Padding="11,7">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Path Grid.Column="0" Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" Stroke="{StaticResource Muted}" StrokeThickness="2" Margin="0,0,8,0"
+                                          Data="M11 4 a7 7 0 1 0 0 14 a7 7 0 0 0 0 -14 M21 21 L16.65 16.65" />
+                                    <Grid Grid.Column="1">
+                                        <TextBox Style="{StaticResource BareInput}" Text="{Binding CompareSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="Filter by table name…" Foreground="{StaticResource Muted}" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"
+                                                   Visibility="{Binding CompareSearchText, Converter={StaticResource EmptyToVisible}}" />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <!-- Rows -->
+                        <Border BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Border Grid.Row="0" Background="{StaticResource CardSubtle}" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,0,0,1" CornerRadius="8,8,0,0">
+                                    <Grid Margin="12,7">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="110" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="TABLE" Style="{StaticResource FieldLabel}" Margin="0" />
+                                        <TextBlock Grid.Column="1" Text="SRC COLS" Style="{StaticResource FieldLabel}" Margin="0" />
+                                        <TextBlock Grid.Column="2" Text="TGT COLS" Style="{StaticResource FieldLabel}" Margin="0" />
+                                        <TextBlock Grid.Column="3" Text="SRC ROWS" Style="{StaticResource FieldLabel}" Margin="0" />
+                                        <TextBlock Grid.Column="4" Text="TGT ROWS" Style="{StaticResource FieldLabel}" Margin="0" />
+                                        <TextBlock Grid.Column="5" Text="STATUS" Style="{StaticResource FieldLabel}" Margin="0" />
+                                    </Grid>
+                                </Border>
+                                <ScrollViewer Grid.Row="1" MaxHeight="280" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding CompareRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:CompareRowVm}">
+                                                <Border Background="Transparent" BorderBrush="{StaticResource BorderLight}" BorderThickness="0,0,0,1" Padding="12,7">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="90" />
+                                                            <ColumnDefinition Width="90" />
+                                                            <ColumnDefinition Width="90" />
+                                                            <ColumnDefinition Width="90" />
+                                                            <ColumnDefinition Width="110" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding Table}" FontSize="12" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Navy}" VerticalAlignment="Center" ToolTip="{Binding MismatchReason}" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding SourceColumns}" FontSize="12" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="2" Text="{Binding TargetColumns}" FontSize="12" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="3" Text="{Binding SourceRows}" FontSize="12" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="4" Text="{Binding TargetRows}" FontSize="12" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="5" Text="{Binding StatusText}" FontSize="11" FontWeight="Bold" Foreground="{Binding StatusColor}" VerticalAlignment="Center" ToolTip="{Binding MismatchReason}" />
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
                     </StackPanel>
                 </Border>
 
