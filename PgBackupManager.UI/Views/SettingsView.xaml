@@ -6,7 +6,7 @@
         <vm:SettingsViewModel />
     </UserControl.DataContext>
 
-    <Grid Background="{StaticResource AppBg}">
+    <Grid Background="{DynamicResource AppBg}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -16,11 +16,132 @@
             <StackPanel>
                 <TextBlock Text="Settings" Style="{StaticResource H1}" Margin="0,0,0,16" />
 
+                <!-- Appearance -->
+                <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="Appearance" Style="{StaticResource CardTitle}" Margin="0,0,0,3" />
+                        <TextBlock Text="Applied instantly and remembered — no need to press Save." Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,0,0,14" />
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="THEME" Style="{StaticResource FieldLabel}" Margin="0" VerticalAlignment="Center" />
+                            <ComboBox Grid.Column="1" Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                                      ItemsSource="{Binding ThemeModes}" SelectedItem="{Binding SelectedThemeMode}" />
+                        </Grid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="ACCENT" Style="{StaticResource FieldLabel}" Margin="0" VerticalAlignment="Center" />
+                            <ItemsControl Grid.Column="1" ItemsSource="{Binding Accents}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding DataContext.PickAccentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" ToolTip="{Binding Name}" Cursor="Hand" Margin="0,0,8,0">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="ring" Width="30" Height="30" CornerRadius="15" BorderThickness="2" BorderBrush="Transparent" Padding="3">
+                                                        <Ellipse Fill="{Binding Brush}" />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="ring" Property="BorderBrush" Value="{DynamicResource Muted}" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- SQL editor -->
+                <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,14">
+                    <StackPanel>
+                        <TextBlock Text="SQL Editor" Style="{StaticResource CardTitle}" Margin="0,0,0,14" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock Text="Font size" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Width="120" />
+                            <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding EditorFontSize, UpdateSourceTrigger=LostFocus}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Max rows shown" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Width="120" />
+                            <TextBox Style="{StaticResource InputBox}" Width="90" TextAlignment="Center" Text="{Binding EditorMaxRows, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="per result set (export always writes everything)" FontSize="11.5" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Dependencies -->
+                <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,14">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,3">
+                            <TextBlock Text="Dependencies" Style="{StaticResource CardTitle}" />
+                            <Button Style="{StaticResource PillButton}" Command="{Binding RefreshDependenciesCommand}" Content="RESCAN" HorizontalAlignment="Right" Padding="10,4" />
+                        </Grid>
+                        <TextBlock Text="Database drivers are built in. External client tools are only needed for engine-native dump files — download them here, no admin rights required."
+                                   Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,0,0,12" TextWrapping="Wrap" />
+                        <ItemsControl ItemsSource="{Binding Dependencies}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1" Padding="0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Width="9" Height="9" Margin="2,0,12,0" VerticalAlignment="Center">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="{DynamicResource StatusAmber}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Found}" Value="True">
+                                                                <Setter Property="Fill" Value="{DynamicResource StatusGreen}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock FontSize="12.5" FontWeight="Bold" Foreground="{DynamicResource Navy}">
+                                                    <Run Text="{Binding Name, Mode=OneWay}" /><Run Text="  ·  " Foreground="{DynamicResource Muted}" /><Run Text="{Binding StatusText, Mode=OneWay}" Foreground="{DynamicResource Secondary}" FontWeight="Normal" />
+                                                </TextBlock>
+                                                <TextBlock Text="{Binding Purpose}" FontSize="11.5" Foreground="{DynamicResource Secondary}" />
+                                                <TextBlock Text="{Binding Path}" FontSize="10.5" FontFamily="{StaticResource FontMono}" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis"
+                                                           Visibility="{Binding Path, Converter={StaticResource EmptyToVisible}, ConverterParameter=invert}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Style="{StaticResource PillButton}" Content="DOWNLOAD" Margin="0,0,6,0" Padding="10,5"
+                                                        Command="{Binding DataContext.DownloadDependencyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                        Visibility="{Binding CanDownload, Converter={StaticResource BoolToVisible}}" />
+                                                <Button Style="{StaticResource PillButton}" Content="INFO" Padding="10,5"
+                                                        Command="{Binding DataContext.OpenDependencyInfoCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                        Visibility="{Binding InfoUrl, Converter={StaticResource EmptyToVisible}, ConverterParameter=invert}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding DependencyProgress}" FontSize="11.5" Foreground="{DynamicResource Teal}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
                 <!-- PG tools -->
                 <Border Style="{StaticResource Card}" Padding="18" Margin="0,0,0,14">
                     <StackPanel>
                         <TextBlock Text="PostgreSQL Client Tools" Style="{StaticResource CardTitle}" Margin="0,0,0,3" />
-                        <TextBlock Text="Override the auto-detected bin folder (only set this if you have multiple PG installs)." Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,0,14" TextWrapping="Wrap" />
+                        <TextBlock Text="Override the auto-detected bin folder (only set this if you have multiple PG installs)." Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,0,0,14" TextWrapping="Wrap" />
                         <Grid Margin="0,0,0,10" Visibility="{Binding DetectedInstalls.Count, Converter={StaticResource ZeroToCollapsed}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120" />
@@ -53,7 +174,7 @@
                             <TextBox Grid.Column="1" Style="{StaticResource InputBox}" FontFamily="{StaticResource FontMono}" Text="{Binding PgBinDirOverride, UpdateSourceTrigger=PropertyChanged}" />
                             <Button Grid.Column="2" Style="{StaticResource GhostButton}" Command="{Binding BrowsePgBinCommand}" Content="BROWSE" Margin="8,0,0,0" />
                         </Grid>
-                        <Border Background="{StaticResource CardSubtle}" BorderBrush="{StaticResource BorderLight}" BorderThickness="1" CornerRadius="8" Padding="14,12">
+                        <Border Background="{DynamicResource CardSubtle}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" CornerRadius="8" Padding="14,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="130" />
@@ -65,14 +186,14 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Detected version" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,3" />
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DetectedPgVersion}" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource StatusGreen}" Margin="0,3" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="pg_dump.exe" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,3" />
-                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetectedPgDump}" FontSize="11.5" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Body}" Margin="0,3" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="pg_restore.exe" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,3" />
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DetectedPgRestore}" FontSize="11.5" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Body}" Margin="0,3" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="psql.exe" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,3" />
-                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DetectedPsql}" FontSize="11.5" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Body}" Margin="0,3" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Detected version" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource Muted}" Margin="0,3" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DetectedPgVersion}" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource StatusGreen}" Margin="0,3" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="pg_dump.exe" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource Muted}" Margin="0,3" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetectedPgDump}" FontSize="11.5" FontFamily="{StaticResource FontMono}" Foreground="{DynamicResource Body}" Margin="0,3" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="pg_restore.exe" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource Muted}" Margin="0,3" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DetectedPgRestore}" FontSize="11.5" FontFamily="{StaticResource FontMono}" Foreground="{DynamicResource Body}" Margin="0,3" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="psql.exe" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource Muted}" Margin="0,3" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DetectedPsql}" FontSize="11.5" FontFamily="{StaticResource FontMono}" Foreground="{DynamicResource Body}" Margin="0,3" TextTrimming="CharacterEllipsis" />
                             </Grid>
                         </Border>
                     </StackPanel>
@@ -113,9 +234,9 @@
                         <CheckBox Style="{StaticResource DesignCheck}" Content="Show a notification when a backup/restore finishes"
                                   IsChecked="{Binding NotifyOnCompletion}" Margin="0,0,0,12" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                            <TextBlock Text="Auto-dismiss after" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Text="Auto-dismiss after" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Margin="0,0,10,0" />
                             <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding NotificationDurationSeconds, UpdateSourceTrigger=LostFocus}" />
-                            <TextBlock Text="seconds" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                            <TextBlock Text="seconds" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Margin="8,0,0,0" />
                         </StackPanel>
                         <CheckBox Style="{StaticResource DesignCheck}" Content="Flash the taskbar icon on completion (useful when minimized)"
                                   IsChecked="{Binding FlashTaskbarOnCompletion}" Margin="0,0,0,14" />
@@ -129,13 +250,13 @@
                     <StackPanel>
                         <TextBlock Text="Retention Policy" Style="{StaticResource CardTitle}" Margin="0,0,0,14" />
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                            <TextBlock Text="Delete backups older than" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Text="Delete backups older than" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Margin="0,0,10,0" />
                             <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding RetentionDays, UpdateSourceTrigger=LostFocus}" />
-                            <TextBlock Text="days" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                            <TextBlock Text="days" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Margin="8,0,0,0" />
                         </StackPanel>
                         <TextBlock Margin="0,0,0,12">
-                            <Run Text="Files eligible for deletion right now: " Foreground="#FF64748B" FontSize="12" />
-                            <Run Text="{Binding RetentionPreviewCount}" FontWeight="Bold" Foreground="#FF0F2340" FontSize="12" />
+                            <Run Text="Files eligible for deletion right now: " Foreground="{DynamicResource Secondary}" FontSize="12" />
+                            <Run Text="{Binding RetentionPreviewCount}" FontWeight="Bold" Foreground="{DynamicResource Navy}" FontSize="12" />
                         </TextBlock>
                         <Button Style="{StaticResource PillButton}" Command="{Binding RunRetentionCleanupCommand}" Content="RUN CLEANUP NOW" HorizontalAlignment="Left" Padding="14,8" />
                     </StackPanel>
@@ -146,21 +267,21 @@
                     <StackPanel>
                         <TextBlock Text="About" Style="{StaticResource CardTitle}" Margin="0,0,0,14" />
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="{Binding CurrentVersionText}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Navy}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                            <TextBlock Text="{Binding CurrentVersionText}" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource Navy}" VerticalAlignment="Center" Margin="0,0,14,0" />
                             <Button Style="{StaticResource GhostButton}" Command="{Binding CheckForUpdatesCommand}" Content="CHECK FOR UPDATES" Padding="14,8" />
                         </StackPanel>
-                        <TextBlock Text="Checks automatically each time the app starts — this button is for checking on demand." FontSize="11" Foreground="{StaticResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                        <TextBlock Text="Checks automatically each time the app starts — this button is for checking on demand." FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
 
-                <TextBlock FontSize="11" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Muted}">
+                <TextBlock FontSize="11" FontFamily="{StaticResource FontMono}" Foreground="{DynamicResource Muted}">
                     <Run Text="Settings file: " /><Run Text="{Binding SettingsFilePath}" />
                 </TextBlock>
             </StackPanel>
         </ScrollViewer>
 
         <!-- Footer -->
-        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
+        <Border Grid.Row="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Style="{StaticResource GhostButton}" Command="{Binding CancelCommand}" Content="CANCEL" Padding="20,10" Margin="0,0,10,0"
                         ToolTip="Discard unsaved changes and revert every field to what's currently saved on disk." />
@@ -171,7 +292,7 @@
                         <TextBlock Text="Save Settings" VerticalAlignment="Center" />
                     </StackPanel>
                 </Button>
-                <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource Teal}" FontSize="12" VerticalAlignment="Center" Margin="16,0,0,0" />
+                <TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource Teal}" FontSize="12" VerticalAlignment="Center" Margin="16,0,0,0" />
             </StackPanel>
         </Border>
     </Grid>
