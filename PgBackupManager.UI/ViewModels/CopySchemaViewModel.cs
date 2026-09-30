@@ -47,7 +47,7 @@ public partial class CopySchemaViewModel : ObservableObject
     {
         var currentId = SelectedProfile?.Id;
         Profiles.Clear();
-        foreach (var p in _profileStore.LoadAll().OrderBy(p => p.Name)) Profiles.Add(p);
+        foreach (var p in _profileStore.LoadAll().Where(p => p.Engine == DbEngine.PostgreSql).OrderBy(p => p.Name)) Profiles.Add(p);
         SelectedProfile = currentId.HasValue
             ? Profiles.FirstOrDefault(p => p.Id == currentId) ?? Profiles.FirstOrDefault()
             : Profiles.FirstOrDefault();
