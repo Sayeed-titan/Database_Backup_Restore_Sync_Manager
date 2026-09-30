@@ -22,14 +22,155 @@ using PgBackupManager.UI.Services;
 
 namespace PgBackupManager.UI.ViewModels;
 
+// One result set, shown a page at a time. Table is the buffer of every row
+// fetched so far; when the user pages past its end and the server has more,
+// the next chunk is fetched (LIMIT/OFFSET or OFFSET/FETCH) and appended.
 public partial class ResultSetVm : ObservableObject
 {
+    public static IReadOnlyList<int> PageSizes { get; } = new[] { 100, 250, 500, 1000, 5000 };
+
     public string Header { get; init; } = "";
     public DataTable Table { get; init; } = new();
-    public DataView View => Table.DefaultView;
     public string Sql { get; init; } = "";
-    public bool Truncated { get; init; }
-    public string Info => $"{Table.Rows.Count:N0} row(s){(Truncated ? " — more available (limit reached; use Export for everything)" : "")}";
+    public int ChunkSize { get; init; } = 5000;
+
+    // Supplied by the editor: fetch [offset, offset+limit) / count all. Null = not pageable.
+    public Func<long, int, Task<List<object[]>>>? FetchMore { get; init; }
+    public Func<Task<long>>? CountAll { get; init; }
+
+    [ObservableProperty] private bool _hasMoreOnServer;
+    [ObservableProperty] private long? _totalRows;
+    [ObservableProperty] private int _pageIndex;
+    [ObservableProperty] private int _pageSize = 500;
+    [ObservableProperty] private DataView? _pageView;
+    [ObservableProperty] private bool _isFetching;
+    [ObservableProperty] private string _note = "";
+
+    public int PageStart => PageIndex * PageSize;
+    // Pages actually in the buffer vs. pages in the whole result (known once counted).
+    private int FetchedPages => Math.Max(1, (int)Math.Ceiling(Table.Rows.Count / (double)PageSize));
+    public int PageCount => TotalRows.HasValue ? Math.Max(1, (int)Math.Ceiling(TotalRows.Value / (double)PageSize)) : FetchedPages;
+    public bool CanPrev => PageIndex > 0 && !IsFetching;
+    public bool CanNext => !IsFetching && (PageIndex < FetchedPages - 1 || HasMoreOnServer);
+    public string PageText => $"Page {PageIndex + 1:N0} of {PageCount:N0}{(HasMoreOnServer && !TotalRows.HasValue ? "+" : "")}";
+    public string RangeText
+    {
+        get
+        {
+            if (Table.Rows.Count == 0) return "0 rows";
+            var from = PageStart + 1;
+            var to = Math.Min(PageStart + PageSize, Table.Rows.Count);
+            var of = TotalRows.HasValue ? TotalRows.Value.ToString("N0") : Table.Rows.Count.ToString("N0") + (HasMoreOnServer ? "+" : "");
+            return $"Rows {from:N0}–{to:N0} of {of}";
+        }
+    }
+    public string Info => RangeText;
+
+    public void Init(bool truncated, int pageSize)
+    {
+        HasMoreOnServer = truncated && FetchMore != null;
+        if (truncated && FetchMore == null) Note = "More rows exist, but this statement can't be paged (e.g. SELECT TOP / EXEC). Add ORDER BY/LIMIT or use Export All.";
+        if (!truncated) TotalRows = Table.Rows.Count;
+        PageSize = pageSize;
+        ShowPage();
+    }
+
+    partial void OnPageSizeChanged(int oldValue, int newValue)
+    {
+        if (newValue <= 0) return;
+        // keep the first visible row on screen
+        PageIndex = oldValue > 0 ? (PageIndex * oldValue) / newValue : 0;
+        ShowPage();
+    }
+
+    partial void OnHasMoreOnServerChanged(bool value) => Refresh();
+    partial void OnTotalRowsChanged(long? value) => Refresh();
+    partial void OnIsFetchingChanged(bool value) => Refresh();
+
+    private void ShowPage()
+    {
+        PageIndex = Math.Clamp(PageIndex, 0, FetchedPages - 1);
+        var page = Table.Clone();
+        int end = Math.Min(PageStart + PageSize, Table.Rows.Count);
+        page.BeginLoadData();
+        for (int i = PageStart; i < end; i++) page.Rows.Add(Table.Rows[i].ItemArray);
+        page.EndLoadData();
+        PageView = page.DefaultView;
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        foreach (var n in new[] { nameof(PageStart), nameof(PageCount), nameof(CanPrev), nameof(CanNext), nameof(PageText), nameof(RangeText), nameof(Info) })
+            OnPropertyChanged(n);
+        FirstCommand.NotifyCanExecuteChanged(); PrevCommand.NotifyCanExecuteChanged(); LoadMoreCommand.NotifyCanExecuteChanged();
+        NextCommand.NotifyCanExecuteChanged(); LastCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanPrev))] private void First() { PageIndex = 0; ShowPage(); }
+    [RelayCommand(CanExecute = nameof(CanPrev))] private void Prev() { PageIndex--; ShowPage(); }
+
+    [RelayCommand(CanExecute = nameof(CanNext))]
+    private async Task NextAsync()
+    {
+        if (PageStart + PageSize >= Table.Rows.Count && HasMoreOnServer) await FetchChunkAsync();
+        if (PageStart + PageSize < Table.Rows.Count) PageIndex++;
+        ShowPage();
+    }
+
+    // "Last" fetches the remaining rows only when the total is known and the
+    // gap is modest (≤ 100k rows); it never silently pulls millions of rows.
+    [RelayCommand(CanExecute = nameof(CanNext))]
+    private async Task LastAsync()
+    {
+        if (HasMoreOnServer && TotalRows is long total && total - Table.Rows.Count <= 100_000)
+            while (HasMoreOnServer)
+            {
+                var before = Table.Rows.Count;
+                await FetchChunkAsync();   // clears HasMoreOnServer at the end or on error
+                if (Table.Rows.Count == before) break;
+            }
+        else if (HasMoreOnServer)
+            Note = TotalRows.HasValue ? "Too many rows to jump to the end — use Next / Load More, or ORDER BY … DESC." : "Last fetched page — press COUNT ALL, then Last, to jump to the real end.";
+        PageIndex = FetchedPages - 1;
+        ShowPage();
+    }
+
+    [RelayCommand]
+    private async Task LoadMoreAsync() { if (HasMoreOnServer) { await FetchChunkAsync(); ShowPage(); } }
+
+    [RelayCommand]
+    private async Task CountAsync()
+    {
+        if (CountAll == null || IsFetching) return;
+        try
+        {
+            IsFetching = true;
+            Note = "Counting…";
+            TotalRows = await CountAll();
+            Note = "";
+        }
+        catch (Exception ex) { Note = "Count failed: " + ex.Message; }
+        finally { IsFetching = false; }
+    }
+
+    private async Task FetchChunkAsync()
+    {
+        if (FetchMore == null || IsFetching) return;
+        try
+        {
+            IsFetching = true;
+            Note = $"Fetching rows {Table.Rows.Count + 1:N0}–{Table.Rows.Count + ChunkSize:N0}…";
+            var rows = await FetchMore(Table.Rows.Count, ChunkSize);
+            Table.BeginLoadData();
+            foreach (var r in rows) Table.Rows.Add(r.Length == Table.Columns.Count ? r : r.Take(Table.Columns.Count).ToArray());
+            Table.EndLoadData();
+            if (rows.Count < ChunkSize) { HasMoreOnServer = false; TotalRows = Table.Rows.Count; }
+            Note = "";
+        }
+        catch (Exception ex) { Note = "Couldn't fetch more rows: " + ex.Message; HasMoreOnServer = false; }
+        finally { IsFetching = false; }
+    }
 }
 
 public partial class QueryTabVm : ObservableObject
@@ -514,12 +655,24 @@ public partial class SqlEditorViewModel : ObservableObject, ISqlCompletionSource
             int n = 1;
             foreach (var r in results)
                 foreach (var t in r.Tables)
-                    tab.Results.Add(new ResultSetVm { Header = $"Result {n++}", Table = t, Sql = r.Sql, Truncated = r.Truncated });
+                {
+                    // Only a single-result SELECT can be re-queried page by page.
+                    var pageable = r.Tables.Count == 1 && QueryPaging.IsPageable(r.Sql);
+                    var rs = new ResultSetVm
+                    {
+                        Header = $"Result {n++}", Table = t, Sql = r.Sql, ChunkSize = Math.Max(100, settings.EditorMaxRows),
+                        FetchMore = pageable && QueryPaging.PageSql(_provider.Dialect, r.Sql, 0, 1) != null ? MakeFetcher(r.Sql) : null,
+                        CountAll = pageable ? MakeCounter(r.Sql) : null,
+                    };
+                    rs.Init(r.Truncated, Math.Clamp(settings.EditorPageSize, 50, 5000));
+                    tab.Results.Add(rs);
+                }
             tab.SelectedResult = tab.Results.FirstOrDefault();
             var errors = results.Count(r => !r.Ok);
             var rows = results.Sum(r => r.Tables.Sum(t => t.Rows.Count));
             var affected = results.Where(r => r.RowsAffected > 0).Sum(r => r.RowsAffected);
-            tab.StatusText = $"{results.Count} statement(s) · {rows:N0} row(s) returned · {affected:N0} affected · {sw.Elapsed.TotalMilliseconds:N0} ms" + (errors > 0 ? $" · {errors} error(s)" : "");
+            var more = results.Any(r => r.Truncated) ? "+" : "";
+            tab.StatusText = $"{results.Count} statement(s) · {rows:N0}{more} row(s) returned · {affected:N0} affected · {sw.Elapsed.TotalMilliseconds:N0} ms" + (errors > 0 ? $" · {errors} error(s)" : "");
             tab.ShowMessages = errors > 0 || tab.Results.Count == 0;
             if (errors > 0)
             {
@@ -544,6 +697,41 @@ public partial class SqlEditorViewModel : ObservableObject, ISqlCompletionSource
             IsBusy = false;
             _cts.Dispose(); _cts = null;
         }
+    }
+
+    // Page/count queries run on the SAME open connection and transaction as the
+    // original run, so temp tables and uncommitted rows are visible to them.
+    private Func<long, int, Task<List<object[]>>> MakeFetcher(string sql)
+    {
+        var profileId = SelectedProfile?.Id;
+        return async (offset, limit) =>
+        {
+            var conn = RequireSameConnection(profileId);
+            var pageSql = QueryPaging.PageSql(_provider!.Dialect, sql, offset, limit)!;
+            IsBusy = true;
+            try { return await new QueryExecutor().FetchRowsAsync(conn, _tx, pageSql); }
+            finally { IsBusy = false; }
+        };
+    }
+
+    private Func<Task<long>> MakeCounter(string sql)
+    {
+        var profileId = SelectedProfile?.Id;
+        return async () =>
+        {
+            var conn = RequireSameConnection(profileId);
+            IsBusy = true;
+            try { return await QueryExecutor.CountAsync(conn, _tx, QueryPaging.CountSql(_provider!.Dialect, sql)!); }
+            finally { IsBusy = false; }
+        };
+    }
+
+    private DbConnection RequireSameConnection(Guid? profileId)
+    {
+        if (_conn == null || !IsConnected || SelectedProfile?.Id != profileId)
+            throw new InvalidOperationException("the connection changed since this result was produced — run the query again.");
+        if (IsBusy) throw new InvalidOperationException("another statement is running on this connection — try again when it finishes.");
+        return _conn;
     }
 
     public string BuildExplain(string stmt)
