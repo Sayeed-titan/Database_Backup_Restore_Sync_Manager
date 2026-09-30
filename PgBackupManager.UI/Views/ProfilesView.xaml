@@ -11,7 +11,7 @@
         <Style x:Key="RowName" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12.5" />
             <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Foreground" Value="{StaticResource Navy}" />
+            <Setter Property="Foreground" Value="{DynamicResource Navy}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
@@ -21,7 +21,7 @@
         </Style>
         <Style x:Key="RowSub" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{StaticResource Secondary}" />
+            <Setter Property="Foreground" Value="{DynamicResource Secondary}" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
@@ -31,7 +31,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Background="{StaticResource AppBg}">
+    <Grid Background="{DynamicResource AppBg}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -41,7 +41,7 @@
             <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                     <TextBlock Text="Connection Profiles" Style="{StaticResource H1}" VerticalAlignment="Center" />
-                    <TextBlock Text="— passwords encrypted with Windows DPAPI (per user)" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="10,3,0,0" />
+                    <TextBlock Text="— passwords encrypted with Windows DPAPI (per user)" Foreground="{DynamicResource Muted}" FontSize="12" VerticalAlignment="Center" Margin="10,3,0,0" />
                 </StackPanel>
 
                 <Border Style="{StaticResource Card}" CornerRadius="12">
@@ -50,11 +50,11 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <Border Grid.Row="0" Background="{StaticResource CardSubtle}" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,0,0,1" CornerRadius="12,12,0,0">
+                        <Border Grid.Row="0" Background="{DynamicResource CardSubtle}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,0,0,1" CornerRadius="12,12,0,0">
                             <Grid Margin="16,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="160" />
-                                    <ColumnDefinition Width="64" />
+                                    <ColumnDefinition Width="74" />
                                     <ColumnDefinition Width="150" />
                                     <ColumnDefinition Width="80" />
                                     <ColumnDefinition Width="130" />
@@ -82,15 +82,15 @@
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="ListBoxItem">
-                                                <Border x:Name="bd" Background="White" BorderBrush="{StaticResource BorderLight}" BorderThickness="0,0,0,1" Padding="16,12">
+                                                <Border x:Name="bd" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1" Padding="16,12">
                                                     <ContentPresenter />
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="bd" Property="Background" Value="#FFF0F9FC" />
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource HoverBg}" />
                                                     </Trigger>
                                                     <Trigger Property="IsSelected" Value="True">
-                                                        <Setter TargetName="bd" Property="Background" Value="{StaticResource Teal}" />
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Teal}" />
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -103,7 +103,7 @@
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="160" />
-                                            <ColumnDefinition Width="64" />
+                                            <ColumnDefinition Width="74" />
                                             <ColumnDefinition Width="150" />
                                             <ColumnDefinition Width="80" />
                                             <ColumnDefinition Width="130" />
@@ -112,8 +112,8 @@
                                             <ColumnDefinition Width="150" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" Text="{Binding Name}" Style="{StaticResource RowName}" />
-                                        <Border Grid.Column="1" Background="{StaticResource TealBadgeBg}" CornerRadius="6" Padding="6,2" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Engine, Converter={StaticResource DbEngineBadge}}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Teal}" />
+                                        <Border Grid.Column="1" Background="{DynamicResource TealBadgeBg}" CornerRadius="6" Padding="6,2" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Engine, Converter={StaticResource DbEngineBadge}}" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource Teal}" />
                                         </Border>
                                         <TextBlock Grid.Column="2" Text="{Binding Host}" Style="{StaticResource RowSub}" FontFamily="{StaticResource FontMono}" />
                                         <TextBlock Grid.Column="3" Text="{Binding Port}" Style="{StaticResource RowSub}" FontFamily="{StaticResource FontMono}" />
@@ -129,22 +129,22 @@
                 </Border>
 
                 <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                    <Path Width="13" Height="13" Stretch="Uniform" Stroke="{StaticResource Muted}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,8,0"
+                    <Path Width="13" Height="13" Stretch="Uniform" Stroke="{DynamicResource Muted}" StrokeThickness="2" VerticalAlignment="Center" Margin="0,0,8,0"
                           Data="M12 2 a10 10 0 1 0 0 20 a10 10 0 0 0 0 -20 M12 16 L12 12 M12 8 L12.01 8" />
-                    <TextBlock Text="Select a profile to edit, delete, or test its connection." Foreground="{StaticResource Muted}" FontSize="11.5" VerticalAlignment="Center" />
+                    <TextBlock Text="Select a profile to edit, delete, or test its connection." Foreground="{DynamicResource Muted}" FontSize="11.5" VerticalAlignment="Center" />
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>
 
-        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
+        <Border Grid.Row="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ctrl:Spinner Width="14" Height="14" Stroke="{StaticResource Teal}" Margin="0,0,8,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
-                    <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{StaticResource Secondary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <ctrl:Spinner Width="14" Height="14" Stroke="{DynamicResource Teal}" Margin="0,0,8,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                    <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="{DynamicResource Secondary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button Style="{StaticResource PillButton}" Command="{Binding AddCommand}" Content="ADD" Padding="18,9" Margin="0,0,8,0" />

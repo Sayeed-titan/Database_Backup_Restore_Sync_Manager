@@ -1,0 +1,342 @@
+<UserControl x:Class="PgBackupManager.UI.Views.SqlEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:PgBackupManager.UI.ViewModels"
+             xmlns:ctrl="clr-namespace:PgBackupManager.UI.Controls"
+             AllowDrop="True" Drop="View_Drop">
+    <UserControl.DataContext>
+        <vm:SqlEditorViewModel />
+    </UserControl.DataContext>
+
+    <UserControl.Resources>
+        <Style x:Key="ToolBtn" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+            <Setter Property="Padding" Value="11,6" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+        <Style x:Key="NullCell" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="MaxHeight" Value="22" />
+            <Style.Triggers>
+                <Trigger Property="Text" Value="NULL">
+                    <Setter Property="Foreground" Value="{DynamicResource Muted}" />
+                    <Setter Property="FontStyle" Value="Italic" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PillTab" TargetType="ListBoxItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="bd" CornerRadius="7,7,0,0" Padding="10,6" Margin="0,0,2,0" Background="Transparent" BorderThickness="1,1,1,0" BorderBrush="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource CardSubtle}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource CardBg}" />
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource BorderSoft}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ChipItem" TargetType="ListBoxItem">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="bd" CornerRadius="6" Padding="9,3" Margin="0,0,4,0" Background="Transparent">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource TealBadgeBg}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{DynamicResource AppBg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- TOOLBAR -->
+        <Border Grid.Row="0" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,0,0,1" Padding="14,9">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <WrapPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" Width="250" Margin="0,0,6,0"
+                              ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" DisplayMemberPath="DisplayWithEngine" ToolTip="Connection" />
+                    <Button Style="{StaticResource ToolBtn}" Command="{Binding ConnectCommand}" Content="CONNECT" ToolTip="Connect / reconnect" />
+                    <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" Width="170" Margin="0,0,14,0"
+                              ItemsSource="{Binding Schemas}" SelectedItem="{Binding SelectedSchema}" ToolTip="Default schema for this session" />
+
+                    <Button Style="{StaticResource PrimaryButton}" Click="Run_Click" Padding="14,6" Margin="0,0,6,0" ToolTip="Run selection, or everything (Ctrl+Enter / F5)">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Width="10" Height="10" Stretch="Uniform" Fill="White" Data="M6 4 L20 12 L6 20 Z" Margin="0,0,7,0" />
+                            <TextBlock Text="Run" FontSize="12" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource ToolBtn}" Click="RunStatement_Click" Content="RUN STATEMENT" ToolTip="Run only the statement at the cursor (Ctrl+Shift+Enter)" />
+                    <Button Style="{StaticResource ToolBtn}" Click="Explain_Click" Content="EXPLAIN" ToolTip="Show the execution plan of the statement at the cursor (Ctrl+E)" />
+                    <Button Style="{StaticResource ToolBtn}" Command="{Binding CancelCommand}" Content="STOP" IsEnabled="{Binding IsBusy}" Margin="0,0,14,0" />
+
+                    <CheckBox Style="{StaticResource DesignCheck}" Content="Auto-commit" IsChecked="{Binding AutoCommit}" VerticalAlignment="Center" Margin="0,0,8,0"
+                              ToolTip="Off = every run joins one open transaction until you Commit or Rollback" />
+                    <Button Style="{StaticResource ToolBtn}" Command="{Binding CommitCommand}" Content="COMMIT" IsEnabled="{Binding InTransaction}" />
+                    <Button Style="{StaticResource ToolBtn}" Command="{Binding RollbackCommand}" Content="ROLLBACK" IsEnabled="{Binding InTransaction}" Margin="0,0,14,0" />
+
+                    <Button Style="{StaticResource ToolBtn}" Command="{Binding NewTabCommand}" Content="NEW" ToolTip="New query tab (Ctrl+T)" />
+                    <Button Style="{StaticResource ToolBtn}" Command="{Binding OpenFileCommand}" Content="OPEN" ToolTip="Open .sql file(s) (Ctrl+O) — or drop files here" />
+                    <Button Style="{StaticResource ToolBtn}" Command="{Binding SaveCommand}" Content="SAVE" ToolTip="Save (Ctrl+S)" />
+                    <Button Style="{StaticResource ToolBtn}" Command="{Binding RunFileCommand}" Content="RUN FILE…" ToolTip="Execute a (large) script file without opening it — e.g. a plain pg_dump / mysqldump .sql" />
+                </WrapPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="10,0,0,0" MaxWidth="330">
+                    <ctrl:Spinner Width="13" Height="13" Stroke="{DynamicResource Teal}" Margin="0,0,7,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                    <TextBlock Text="{Binding ElapsedText}" FontSize="11" Foreground="{DynamicResource Secondary}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                    <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{DynamicResource Muted}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                        <Setter Property="Fill" Value="{DynamicResource StatusGreen}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="{Binding ConnectionText}" FontSize="11" Foreground="{DynamicResource Secondary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip="{Binding ConnectionText}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="270" MinWidth="170" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" MinWidth="300" />
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT: objects / history -->
+            <Border Grid.Column="0" Style="{StaticResource Card}" CornerRadius="10" Padding="8">
+                <TabControl Background="Transparent" BorderThickness="0" Padding="0">
+                    <TabControl.Resources>
+                        <Style TargetType="TabItem">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TabItem">
+                                        <Border x:Name="bd" Padding="10,5" CornerRadius="6" Margin="0,0,4,6" Cursor="Hand">
+                                            <TextBlock x:Name="t" Text="{TemplateBinding Header}" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource Secondary}" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource TealBadgeBg}" />
+                                                <Setter TargetName="t" Property="Foreground" Value="{DynamicResource Teal}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TabControl.Resources>
+                    <TabItem Header="OBJECTS">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Background="{DynamicResource CardSubtle}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="7" Padding="8,4">
+                                    <Grid>
+                                        <TextBox Style="{StaticResource BareInput}" FontSize="11.5" Text="{Binding ExplorerFilter, UpdateSourceTrigger=PropertyChanged, Delay=250}" />
+                                        <TextBlock Text="Filter objects…" Foreground="{DynamicResource Muted}" FontSize="11.5" IsHitTestVisible="False"
+                                                   Visibility="{Binding ExplorerFilter, Converter={StaticResource EmptyToVisible}}" />
+                                    </Grid>
+                                </Border>
+                                <Button Grid.Column="1" Style="{StaticResource PillButton}" Command="{Binding RefreshExplorerCommand}" Margin="6,0,0,0" Padding="7,4" ToolTip="Refresh">
+                                    <Path Width="11" Height="11" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2" Data="M21 12 A9 9 0 1 1 18.4 5.6 M21 3 V8 H16" />
+                                </Button>
+                            </Grid>
+                            <TreeView x:Name="ExplorerTree" Grid.Row="1" ItemsSource="{Binding Explorer}" Background="Transparent" BorderThickness="0"
+                                      ItemContainerStyle="{StaticResource DesignTreeItem}" MouseDoubleClick="ExplorerTree_MouseDoubleClick"
+                                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                                <TreeView.ContextMenu>
+                                    <ContextMenu x:Name="ExplorerMenu" Opened="ExplorerMenu_Opened">
+                                        <MenuItem Header="Select top 100" Click="Menu_SelectTop" />
+                                        <MenuItem Header="Script source / DDL" Click="Menu_Script" />
+                                        <MenuItem Header="Insert name into editor" Click="Menu_Insert" />
+                                        <MenuItem Header="Copy name" Click="Menu_Copy" />
+                                        <Separator />
+                                        <MenuItem Header="Export data to file…" Click="Menu_Export" />
+                                        <MenuItem Header="Import CSV into this table / schema…" Click="Menu_Import" />
+                                        <Separator />
+                                        <MenuItem Header="Convert code to another engine…" Click="Menu_Convert" />
+                                        <MenuItem Header="Transfer to another database…" Click="Menu_Transfer" />
+                                    </ContextMenu>
+                                </TreeView.ContextMenu>
+                                <TreeView.ItemTemplate>
+                                    <HierarchicalDataTemplate DataType="{x:Type vm:ObjectNodeVm}" ItemsSource="{Binding Children}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Width="12" Height="12" Stretch="Uniform" StrokeThickness="1.8" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                  StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                  Stroke="{DynamicResource Teal}" Data="{Binding Glyph}" />
+                                            <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource Body}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Detail}" FontSize="10.5" Foreground="{DynamicResource Muted}" Margin="7,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource FontMono}" />
+                                        </StackPanel>
+                                    </HierarchicalDataTemplate>
+                                </TreeView.ItemTemplate>
+                            </TreeView>
+                        </Grid>
+                    </TabItem>
+                    <TabItem Header="HISTORY">
+                        <ListBox ItemsSource="{Binding History}" Background="Transparent" BorderThickness="0" MouseDoubleClick="History_DoubleClick"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" x:Name="HistoryList">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,3" ToolTip="{Binding Sql}">
+                                        <TextBlock FontSize="10" Foreground="{DynamicResource Muted}">
+                                            <Run Text="{Binding WhenText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Profile, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Preview}" FontFamily="{StaticResource FontMono}" FontSize="11" Foreground="{DynamicResource Body}" TextWrapping="Wrap" MaxHeight="46" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </TabItem>
+                </TabControl>
+            </Border>
+
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="Transparent" Cursor="SizeWE" />
+
+            <!-- RIGHT: tabs + editor + results -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" MinHeight="120" />
+                    <RowDefinition Height="8" />
+                    <RowDefinition Height="280" MinHeight="90" />
+                </Grid.RowDefinitions>
+
+                <!-- query tabs -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                    <ListBox ItemsSource="{Binding Tabs}" SelectedItem="{Binding SelectedTab}" ItemContainerStyle="{StaticResource PillTab}"
+                             Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Auto" MaxWidth="2000">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Header}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Body}" MaxWidth="180" TextTrimming="CharacterEllipsis" ToolTip="{Binding FilePath}" />
+                                    <Button Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                            Style="{StaticResource TitleBarButton}" Margin="8,0,0,0" Width="16" Height="16" ToolTip="Close (Ctrl+W)">
+                                        <Path Width="8" Height="8" Stretch="Uniform" Stroke="{DynamicResource Muted}" StrokeThickness="1.8" Data="M6 6 L18 18 M18 6 L6 18" />
+                                    </Button>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Button Style="{StaticResource TitleBarButton}" Command="{Binding NewTabCommand}" Width="26" Height="26" ToolTip="New tab">
+                        <Path Width="10" Height="10" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2" Data="M12 5 V19 M5 12 H19" />
+                    </Button>
+                </StackPanel>
+
+                <!-- editor -->
+                <Border Grid.Row="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="0,10,10,10" ClipToBounds="True">
+                    <ContentControl Content="{Binding SelectedTab}">
+                        <ContentControl.ContentTemplate>
+                            <DataTemplate DataType="{x:Type vm:QueryTabVm}">
+                                <ctrl:SqlTextEditor Code="{Binding Code, Mode=TwoWay}" Loaded="Editor_Loaded"
+                                                    CompletionSource="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                            </DataTemplate>
+                        </ContentControl.ContentTemplate>
+                    </ContentControl>
+                </Border>
+
+                <GridSplitter Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" Cursor="SizeNS" />
+
+                <!-- results -->
+                <Border Grid.Row="3" Style="{StaticResource Card}" CornerRadius="10" Padding="0">
+                    <Grid DataContext="{Binding SelectedTab}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border Background="{DynamicResource CardSubtle}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,0,0,1" CornerRadius="10,10,0,0" Padding="8,5">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ListBox Grid.Column="0" ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResult}" ItemContainerStyle="{StaticResource ChipItem}"
+                                         Background="Transparent" BorderThickness="0" PreviewMouseLeftButtonDown="ResultChip_Click">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate><TextBlock Text="{Binding Header}" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource Body}" /></DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <ToggleButton Grid.Column="1" IsChecked="{Binding ShowMessages}" Cursor="Hand" Margin="4,0,0,0">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border x:Name="bd" CornerRadius="6" Padding="9,3" Background="Transparent">
+                                                <TextBlock Text="Messages" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource Body}" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource TealBadgeBg}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                                <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="11" Foreground="{DynamicResource Secondary}" VerticalAlignment="Center" Margin="12,0" TextTrimming="CharacterEllipsis" />
+                                <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                    <TextBlock Text="{Binding SelectedResult.Info}" FontSize="10.5" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="360" TextTrimming="CharacterEllipsis" />
+                                    <Button Style="{StaticResource PillButton}" Padding="8,3" Margin="0,0,4,0" Content="EXPORT GRID"
+                                            Command="{Binding DataContext.ExportGridCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" ToolTip="Save the rows shown to CSV/TSV" />
+                                    <Button Style="{StaticResource PillButton}" Padding="8,3" Content="EXPORT ALL…"
+                                            Command="{Binding DataContext.ExportFullCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" ToolTip="Re-run this result's query and stream EVERY row to CSV / TSV / JSON / INSERT script" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <Grid Grid.Row="1">
+                            <DataGrid x:Name="ResultGrid" Style="{StaticResource DesignGrid}" ItemsSource="{Binding SelectedResult.View}" BorderThickness="0"
+                                      AutoGeneratingColumn="ResultGrid_AutoGeneratingColumn" CanUserSortColumns="True" />
+                            <ListBox ItemsSource="{Binding Messages}" Background="{DynamicResource TermBg}" BorderThickness="0" Padding="8,6"
+                                     Visibility="{Binding ShowMessages, Converter={StaticResource BoolToVisible}}"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" Style="{StaticResource TermLine}" Foreground="{Binding Converter={StaticResource LogLineBrush}}" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>
