@@ -11,12 +11,12 @@
         <!-- KPI toggle-card -->
         <Style x:Key="KpiCard" TargetType="ToggleButton">
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Background" Value="White" />
+            <Setter Property="Background" Value="{DynamicResource CardBg}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="12"
-                                BorderBrush="{StaticResource BorderSoft}" BorderThickness="1.5" Padding="16,13">
+                                BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1.5" Padding="16,13">
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -25,7 +25,7 @@
                                 <Setter TargetName="bd" Property="BorderBrush" Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" />
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="{StaticResource CardSubtle}" />
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource CardSubtle}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -34,7 +34,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Background="{StaticResource AppBg}">
+    <Grid Background="{DynamicResource AppBg}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -60,7 +60,7 @@
                     </StackPanel>
                     <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding BrowseFileCommand}" VerticalAlignment="Bottom" Height="38" Margin="0,0,8,0">
                         <StackPanel Orientation="Horizontal">
-                            <Path Width="13" Height="13" Stretch="Uniform" Stroke="{StaticResource Secondary}" StrokeThickness="2" StrokeLineJoin="Round" Margin="0,0,6,0"
+                            <Path Width="13" Height="13" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2" StrokeLineJoin="Round" Margin="0,0,6,0"
                                   Data="M4 20 h16 a2 2 0 0 0 2 -2 V8 a2 2 0 0 0 -2 -2 h-7.93 a2 2 0 0 1 -1.66 -.9 l-.82 -1.2 A2 2 0 0 0 7.93 3 H4 a2 2 0 0 0 -2 2 v13 a2 2 0 0 0 2 2 Z" />
                             <TextBlock Text="BROWSE" VerticalAlignment="Center" />
                         </StackPanel>
@@ -68,7 +68,7 @@
                     <Button Grid.Column="2" Style="{StaticResource GhostButton}" Command="{Binding BrowseFolderCommand}" VerticalAlignment="Bottom" Height="38" Margin="0,0,8,0"
                             ToolTip="For Directory-format backups (pg_dump -Fd), which are a folder rather than a single file.">
                         <StackPanel Orientation="Horizontal">
-                            <Path Width="13" Height="13" Stretch="Uniform" Stroke="{StaticResource Secondary}" StrokeThickness="2" StrokeLineJoin="Round" Margin="0,0,6,0"
+                            <Path Width="13" Height="13" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2" StrokeLineJoin="Round" Margin="0,0,6,0"
                                   Data="M3 6 a2 2 0 0 1 2 -2 h4 l2 2 h8 a2 2 0 0 1 2 2 v9 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 Z" />
                             <TextBlock Text="FOLDER" VerticalAlignment="Center" />
                         </StackPanel>
@@ -108,12 +108,12 @@
                 </Border>
 
                 <!-- Plain-text SQL banner (no TOC — pg_restore can't read this format at all) -->
-                <Border Background="{StaticResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,0,0,12"
+                <Border Background="{DynamicResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,0,0,12"
                         Visibility="{Binding IsPlainSqlMode, Converter={StaticResource BoolToVisible}}">
                     <StackPanel Orientation="Horizontal">
                         <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"
-                              Fill="{StaticResource Teal}" Data="M12 2 L4 5 v6 c0 5 3.5 8 8 9 c4.5 -1 8 -4 8 -9 V5 Z M10.5 13.5 L8 11 l-1.3 1.3 L10.5 16 L17 9.5 L15.7 8.2 Z" />
-                        <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{StaticResource Secondary}" TextWrapping="Wrap">
+                              Fill="{DynamicResource Teal}" Data="M12 2 L4 5 v6 c0 5 3.5 8 8 9 c4.5 -1 8 -4 8 -9 V5 Z M10.5 13.5 L8 11 l-1.3 1.3 L10.5 16 L17 9.5 L15.7 8.2 Z" />
+                        <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{DynamicResource Secondary}" TextWrapping="Wrap">
                             <Run Text="Plain-text SQL file — restored via psql:" FontWeight="Bold" />
                             <Run Text="pg_restore can't read this format (no real TOC). Click Analyze — schema selection below is inferred from pg_dump's own '-- Schema: ...' comments on a best-effort basis, then Start Restore runs the (optionally filtered) file through psql instead of pg_restore." />
                         </TextBlock>
@@ -128,7 +128,7 @@
                     <CheckBox Style="{StaticResource DesignCheck}" Content="--no-privileges" IsChecked="{Binding NoPrivileges}" IsEnabled="{Binding ShowDiffUi}" Margin="0,0,18,0" />
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding ShowDiffUi}"
                                 ToolTip="pg_restore --jobs=N — runs N workers in parallel for faster restores. Postgres refuses this together with 'Single transaction', so untick that first.">
-                        <TextBlock Text="Parallel jobs" FontSize="12.5" Foreground="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="Parallel jobs" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding ParallelJobs, UpdateSourceTrigger=LostFocus}" />
                     </StackPanel>
                 </WrapPanel>
@@ -137,7 +137,7 @@
                 <Border Style="{StaticResource Card}" CornerRadius="12" Padding="12,9" Margin="0,0,0,8"
                         Visibility="{Binding BackupSchemas.Count, Converter={StaticResource ZeroToCollapsed}}">
                     <DockPanel LastChildFill="True">
-                        <TextBlock DockPanel.Dock="Left" Text="Schemas to restore:" FontWeight="Bold" FontSize="12" Foreground="{StaticResource Navy}" VerticalAlignment="Top" Margin="0,4,12,0" />
+                        <TextBlock DockPanel.Dock="Left" Text="Schemas to restore:" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Navy}" VerticalAlignment="Top" Margin="0,4,12,0" />
                         <ItemsControl ItemsSource="{Binding BackupSchemas}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
@@ -148,7 +148,7 @@
                                         <CheckBox Style="{StaticResource DesignCheck}" Content="{Binding Label}" IsChecked="{Binding IsChecked, Mode=TwoWay}" VerticalAlignment="Center" />
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0"
                                                     Visibility="{Binding DataContext.IsPlainSqlMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisible}}">
-                                            <TextBlock Text="restore as" FontSize="10.5" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                            <TextBlock Text="restore as" FontSize="10.5" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,5,0" />
                                             <TextBox Style="{StaticResource InputBox}" Width="160" FontSize="11.5" Padding="6,3"
                                                      Text="{Binding RenameTo, UpdateSourceTrigger=PropertyChanged}"
                                                      ToolTip="Restore this schema's objects under a different target schema name — text-substitution rename (plain-SQL restore only, best-effort). Leave as the original name for no rename." />
@@ -161,12 +161,12 @@
                 </Border>
 
                 <!-- FULL restore guarantee note -->
-                <Border Background="{StaticResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,0,0,12"
+                <Border Background="{DynamicResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,0,0,12"
                         Visibility="{Binding BackupSchemas.Count, Converter={StaticResource ZeroToCollapsed}}">
                     <StackPanel Orientation="Horizontal">
                         <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0"
-                              Fill="{StaticResource Teal}" Data="M12 2 L4 5 v6 c0 5 3.5 8 8 9 c4.5 -1 8 -4 8 -9 V5 Z M10.5 13.5 L8 11 l-1.3 1.3 L10.5 16 L17 9.5 L15.7 8.2 Z" />
-                        <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{StaticResource Secondary}" TextWrapping="Wrap">
+                              Fill="{DynamicResource Teal}" Data="M12 2 L4 5 v6 c0 5 3.5 8 8 9 c4.5 -1 8 -4 8 -9 V5 Z M10.5 13.5 L8 11 l-1.3 1.3 L10.5 16 L17 9.5 L15.7 8.2 Z" />
+                        <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{DynamicResource Secondary}" TextWrapping="Wrap">
                             <Run Text="FULL restore — every ticked schema is replayed completely:" FontWeight="Bold" />
                             <Run Text="all tables, rows of data, indexes, constraints, sequences and functions. The table below is a read-only preview of what's new vs. already in the target." />
                         </TextBlock>
@@ -182,36 +182,36 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <ToggleButton Grid.Column="0" Style="{StaticResource KpiCard}" Tag="{StaticResource StatusGreen}" IsChecked="{Binding ShowNew}" Margin="0,0,6,0"
+                    <ToggleButton Grid.Column="0" Style="{StaticResource KpiCard}" Tag="{DynamicResource StatusGreen}" IsChecked="{Binding ShowNew}" Margin="0,0,6,0"
                                   ToolTip="In the backup file but NOT in the target DB — these will be created.">
                         <StackPanel>
                             <TextBlock Text="NEW" Style="{StaticResource FieldLabel}" Margin="0,0,0,7" />
-                            <TextBlock Text="{Binding NewCount}" FontSize="26" FontWeight="Bold" Foreground="{StaticResource StatusGreen}" />
-                            <TextBlock Text="{Binding NewBreakdown}" FontSize="10" Foreground="{StaticResource Muted}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding NewCount}" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource StatusGreen}" />
+                            <TextBlock Text="{Binding NewBreakdown}" FontSize="10" Foreground="{DynamicResource Muted}" Margin="0,3,0,0" TextWrapping="Wrap" />
                         </StackPanel>
                     </ToggleButton>
-                    <ToggleButton Grid.Column="1" Style="{StaticResource KpiCard}" Tag="{StaticResource StatusAmber}" IsChecked="{Binding ShowExisting}" Margin="3,0"
+                    <ToggleButton Grid.Column="1" Style="{StaticResource KpiCard}" Tag="{DynamicResource StatusAmber}" IsChecked="{Binding ShowExisting}" Margin="3,0"
                                   ToolTip="In the backup AND already in the target DB — restore would overwrite them.">
                         <StackPanel>
                             <TextBlock Text="EXISTING" Style="{StaticResource FieldLabel}" Margin="0,0,0,7" />
-                            <TextBlock Text="{Binding ExistingCount}" FontSize="26" FontWeight="Bold" Foreground="{StaticResource StatusAmber}" />
-                            <TextBlock Text="{Binding ExistingBreakdown}" FontSize="10" Foreground="{StaticResource Muted}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ExistingCount}" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource StatusAmber}" />
+                            <TextBlock Text="{Binding ExistingBreakdown}" FontSize="10" Foreground="{DynamicResource Muted}" Margin="0,3,0,0" TextWrapping="Wrap" />
                         </StackPanel>
                     </ToggleButton>
-                    <ToggleButton Grid.Column="2" Style="{StaticResource KpiCard}" Tag="{StaticResource StatusRed}" IsChecked="{Binding ShowMissing}" Margin="3,0"
+                    <ToggleButton Grid.Column="2" Style="{StaticResource KpiCard}" Tag="{DynamicResource StatusRed}" IsChecked="{Binding ShowMissing}" Margin="3,0"
                                   ToolTip="In the TICKED schemas of the target DB but NOT in this backup — cannot be restored from here (informational). Objects in schemas you haven't ticked are not counted.">
                         <StackPanel>
                             <TextBlock Text="MISSING FROM BACKUP" Style="{StaticResource FieldLabel}" Margin="0,0,0,7" />
-                            <TextBlock Text="{Binding MissingCount}" FontSize="26" FontWeight="Bold" Foreground="{StaticResource StatusRed}" />
-                            <TextBlock Text="{Binding MissingBreakdown}" FontSize="10" Foreground="{StaticResource Muted}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding MissingCount}" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource StatusRed}" />
+                            <TextBlock Text="{Binding MissingBreakdown}" FontSize="10" Foreground="{DynamicResource Muted}" Margin="0,3,0,0" TextWrapping="Wrap" />
                         </StackPanel>
                     </ToggleButton>
                     <Border Grid.Column="3" Style="{StaticResource Card}" CornerRadius="12" Padding="16,13" Margin="3,0"
                             ToolTip="A full restore replays every object in the ticked schemas — plus all their data, indexes, constraints and sequence values. This is the SIZE of the operation, not a guarantee it will succeed — see CHANGES TO TARGET for the real outcome.">
                         <StackPanel>
                             <TextBlock Text="WILL RESTORE" Style="{StaticResource FieldLabel}" Margin="0,0,0,7" />
-                            <TextBlock Text="{Binding WillRestoreCount}" FontSize="26" FontWeight="Bold" Foreground="{StaticResource Teal}" />
-                            <TextBlock Text="+ all data &amp; indexes" FontSize="10" Foreground="{StaticResource Muted}" Margin="0,3,0,0" />
+                            <TextBlock Text="{Binding WillRestoreCount}" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource Teal}" />
+                            <TextBlock Text="+ all data &amp; indexes" FontSize="10" Foreground="{DynamicResource Muted}" Margin="0,3,0,0" />
                         </StackPanel>
                     </Border>
                     <Border Grid.Column="4" Style="{StaticResource Card}" CornerRadius="12" Padding="16,13" Margin="6,0,0,0"
@@ -219,7 +219,7 @@
                         <StackPanel>
                             <TextBlock Text="CHANGES TO TARGET" Style="{StaticResource FieldLabel}" Margin="0,0,0,7" />
                             <TextBlock Text="{Binding ChangesCount}" FontSize="26" FontWeight="Bold" Foreground="{Binding ChangesBrush}" />
-                            <TextBlock Text="{Binding ChangesDetail}" FontSize="10" Foreground="{StaticResource Muted}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ChangesDetail}" FontSize="10" Foreground="{DynamicResource Muted}" Margin="0,3,0,0" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -230,24 +230,24 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8" Padding="11,7" Margin="0,0,10,0">
+                    <Border Grid.Column="0" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="8" Padding="11,7" Margin="0,0,10,0">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Path Grid.Column="0" Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" Stroke="{StaticResource Muted}" StrokeThickness="2" Margin="0,0,8,0"
+                            <Path Grid.Column="0" Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" Stroke="{DynamicResource Muted}" StrokeThickness="2" Margin="0,0,8,0"
                                   Data="M11 4 a7 7 0 1 0 0 14 a7 7 0 0 0 0 -14 M21 21 L16.65 16.65" />
                             <Grid Grid.Column="1">
                                 <TextBox Style="{StaticResource BareInput}" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Text="Filter by kind / schema.name…" Foreground="{StaticResource Muted}" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"
+                                <TextBlock Text="Filter by kind / schema.name…" Foreground="{DynamicResource Muted}" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"
                                            Visibility="{Binding SearchText, Converter={StaticResource EmptyToVisible}}" />
                             </Grid>
                         </Grid>
                     </Border>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Background="{StaticResource TealBadgeBg}" CornerRadius="20" Padding="11,5">
-                            <TextBlock Text="PREVIEW — restore selection is by schema" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Teal}" />
+                        <Border Background="{DynamicResource TealBadgeBg}" CornerRadius="20" Padding="11,5">
+                            <TextBlock Text="PREVIEW — restore selection is by schema" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource Teal}" />
                         </Border>
                     </StackPanel>
                 </Grid>
@@ -259,7 +259,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <Border Grid.Row="0" Background="{StaticResource CardSubtle}" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,0,0,1" CornerRadius="12,12,0,0">
+                        <Border Grid.Row="0" Background="{DynamicResource CardSubtle}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,0,0,1" CornerRadius="12,12,0,0">
                             <Grid Margin="14,9">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="30" />
@@ -280,7 +280,7 @@
                                 <ItemsControl ItemsSource="{Binding Rows}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type vm:DiffRow}">
-                                            <Border Background="Transparent" BorderBrush="{StaticResource BorderLight}" BorderThickness="0,0,0,1" Padding="14,8">
+                                            <Border Background="Transparent" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1" Padding="14,8">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="30" />
@@ -292,9 +292,9 @@
                                                     <Border Grid.Column="0" Width="9" Height="9" CornerRadius="2.5" VerticalAlignment="Center" HorizontalAlignment="Left"
                                             Background="{Binding StatusColor}" ToolTip="Preview only — restore is driven by the schema checkboxes above." />
                                                     <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="11.5" FontWeight="Bold" Foreground="{Binding StatusColor}" VerticalAlignment="Center" />
-                                                    <TextBlock Grid.Column="2" Text="{Binding Kind}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
-                                                    <TextBlock Grid.Column="3" Text="{Binding Schema}" FontSize="12" Foreground="{StaticResource Secondary}" VerticalAlignment="Center" />
-                                                    <TextBlock Grid.Column="4" Text="{Binding Name}" FontSize="12" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Navy}" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2" Text="{Binding Kind}" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding Schema}" FontSize="12" Foreground="{DynamicResource Secondary}" VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding Name}" FontSize="12" FontFamily="{StaticResource FontMono}" Foreground="{DynamicResource Navy}" VerticalAlignment="Center" />
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
@@ -304,12 +304,12 @@
                             <StackPanel Visibility="{Binding Rows.Count, Converter={StaticResource ZeroToVisible}}"
                                         HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,34">
                                 <Path Width="30" Height="30" Stretch="Uniform" HorizontalAlignment="Center"
-                                      Stroke="{StaticResource Muted}" StrokeThickness="1.6"
+                                      Stroke="{DynamicResource Muted}" StrokeThickness="1.6"
                                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                                       Data="M9 11 l3 3 L22 4 M21 12 v7 a2 2 0 0 1 -2 2 H5 a2 2 0 0 1 -2 -2 V6 a2 2 0 0 1 2 -2 h11" />
-                                <TextBlock Text="Nothing to show" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource Secondary}"
+                                <TextBlock Text="Nothing to show" FontSize="12.5" FontWeight="Bold" Foreground="{DynamicResource Secondary}"
                                            HorizontalAlignment="Center" Margin="0,10,0,3" />
-                                <TextBlock Text="No rows match the ticked schema(s) and status filters above." FontSize="11" Foreground="{StaticResource Muted}"
+                                <TextBlock Text="No rows match the ticked schema(s) and status filters above." FontSize="11" Foreground="{DynamicResource Muted}"
                                            HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="320" TextAlignment="Center" />
                             </StackPanel>
                         </Grid>
@@ -328,18 +328,18 @@
                         <TextBlock Text="COPY LOG" />
                     </Button>
                 </Grid>
-                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{StaticResource TermBorder}" BorderThickness="1" ClipToBounds="True">
+                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{DynamicResource TermBorder}" BorderThickness="1" ClipToBounds="True">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="5" />
                             <RowDefinition Height="120" />
                         </Grid.RowDefinitions>
-                        <Grid Grid.Row="0" Background="{StaticResource TermBar}" ClipToBounds="True">
+                        <Grid Grid.Row="0" Background="{DynamicResource TermBar}" ClipToBounds="True">
                             <Border HorizontalAlignment="Left" Width="300">
                                 <Border.Background>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Color="{StaticResource TealColor}" Offset="0" />
-                                        <GradientStop Color="{StaticResource Teal2Color}" Offset="1" />
+                                        <GradientStop Color="{DynamicResource TealColor}" Offset="0" />
+                                        <GradientStop Color="{DynamicResource Teal2Color}" Offset="1" />
                                     </LinearGradientBrush>
                                 </Border.Background>
                                 <Border.Style>
@@ -364,7 +364,7 @@
                                 </Border.Style>
                             </Border>
                         </Grid>
-                        <ScrollViewer x:Name="LogScroll" Grid.Row="1" Background="{StaticResource TermBg}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
+                        <ScrollViewer x:Name="LogScroll" Grid.Row="1" Background="{DynamicResource TermBg}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
                             <ItemsControl ItemsSource="{Binding LogLines}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -379,17 +379,17 @@
         </ScrollViewer>
 
         <!-- Footer -->
-        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
+        <Border Grid.Row="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="12" Foreground="{StaticResource Secondary}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" FontSize="12" Foreground="{DynamicResource Secondary}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0" MinWidth="170"
                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}">
-                    <TextBlock FontSize="11" Foreground="{StaticResource Secondary}" HorizontalAlignment="Right">
+                    <TextBlock FontSize="11" Foreground="{DynamicResource Secondary}" HorizontalAlignment="Right">
                         <Run Text="{Binding ElapsedText, Mode=OneWay}" FontWeight="Bold" />
                         <Run Text=" elapsed" />
                         <Run Text="  ·  " />

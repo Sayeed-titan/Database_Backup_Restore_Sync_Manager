@@ -8,7 +8,7 @@
         ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True" FontFamily="{StaticResource FontUI}"
         TextOptions.TextFormattingMode="Ideal">
 
-    <Border Background="White" CornerRadius="18" Padding="24" Margin="16">
+    <Border Background="{DynamicResource CardBg}" CornerRadius="18" Padding="24" Margin="16">
         <Border.Effect>
             <DropShadowEffect BlurRadius="40" ShadowDepth="6" Opacity="0.28" Color="#FF0F2340" />
         </Border.Effect>
@@ -21,29 +21,29 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Border Grid.Column="0" Width="38" Height="38" CornerRadius="10"
-                        Background="{StaticResource TealBadgeBg}" VerticalAlignment="Top" Margin="0,0,12,0">
+                        Background="{DynamicResource TealBadgeBg}" VerticalAlignment="Top" Margin="0,0,12,0">
                     <Path Width="18" Height="18" Stretch="Uniform"
-                          Stroke="{StaticResource Teal}" StrokeThickness="2.2"
+                          Stroke="{DynamicResource Teal}" StrokeThickness="2.2"
                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                           Data="M12 3 v12 M7 10 l5 5 5 -5 M5 21 h14" />
                 </Border>
                 <TextBlock x:Name="TitleText" Grid.Column="1" FontSize="16" FontWeight="Bold"
-                           Foreground="{StaticResource Navy}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                           Foreground="{DynamicResource Navy}" VerticalAlignment="Center" TextWrapping="Wrap" />
                 <Button x:Name="CloseXBtn" Grid.Column="2" Style="{StaticResource GhostButton}" Click="CancelBtn_Click"
                         Width="32" Height="32" Padding="0" VerticalAlignment="Top">
-                    <Path Width="13" Height="13" Stretch="Uniform" Stroke="{StaticResource Secondary}" StrokeThickness="2"
+                    <Path Width="13" Height="13" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2"
                           StrokeStartLineCap="Round" Data="M6 6 L18 18 M18 6 L6 18" />
                 </Button>
             </Grid>
 
             <!-- body -->
-            <TextBlock x:Name="MessageText" FontSize="12.5" Foreground="{StaticResource Body}"
+            <TextBlock x:Name="MessageText" FontSize="12.5" Foreground="{DynamicResource Body}"
                        TextWrapping="Wrap" LineHeight="20" Margin="0,0,0,4" />
 
             <StackPanel x:Name="ProgressPanel" Visibility="Collapsed" Margin="0,16,0,0">
                 <Grid Margin="0,0,0,6">
-                    <TextBlock x:Name="PhaseText" Text="Connecting..." FontSize="11.5" Foreground="{StaticResource Secondary}" />
-                    <TextBlock x:Name="SizeText" FontSize="11.5" Foreground="{StaticResource Secondary}" HorizontalAlignment="Right" />
+                    <TextBlock x:Name="PhaseText" Text="Connecting..." FontSize="11.5" Foreground="{DynamicResource Secondary}" />
+                    <TextBlock x:Name="SizeText" FontSize="11.5" Foreground="{DynamicResource Secondary}" HorizontalAlignment="Right" />
                 </Grid>
                 <ProgressBar x:Name="ProgressBarCtl" Height="8" Minimum="0" Maximum="100" />
             </StackPanel>

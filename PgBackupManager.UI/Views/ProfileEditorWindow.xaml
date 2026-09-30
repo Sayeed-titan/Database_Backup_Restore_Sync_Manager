@@ -2,13 +2,14 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Edit profile"
-        Width="480" SizeToContent="Height"
+        Width="520" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" FontFamily="{StaticResource FontUI}"
+        Foreground="{DynamicResource Body}"
         TextOptions.TextFormattingMode="Ideal">
 
-    <Border Background="White" CornerRadius="18" Padding="24" Margin="16">
+    <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="18" Padding="24" Margin="16">
         <Border.Effect>
             <DropShadowEffect BlurRadius="40" ShadowDepth="6" Opacity="0.28" Color="#FF0F2340" />
         </Border.Effect>
@@ -20,11 +21,11 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
-                    <TextBlock x:Name="TitleText" Text="Add Connection Profile" FontSize="17" FontWeight="Bold" Foreground="{StaticResource Navy}" />
-                    <TextBlock Text="Password is encrypted with Windows DPAPI on save." FontSize="11" Foreground="{StaticResource Muted}" Margin="0,2,0,0" />
+                    <TextBlock x:Name="TitleText" Text="Add Connection Profile" FontSize="17" FontWeight="Bold" Foreground="{DynamicResource Navy}" />
+                    <TextBlock Text="Password is encrypted with Windows DPAPI on save." FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,2,0,0" />
                 </StackPanel>
                 <Button Grid.Column="1" Style="{StaticResource GhostButton}" Click="CancelBtn_Click" Width="32" Height="32" Padding="0">
-                    <Path Width="14" Height="14" Stretch="Uniform" Stroke="{StaticResource Secondary}" StrokeThickness="2" StrokeStartLineCap="Round" Data="M6 6 L18 18 M18 6 L6 18" />
+                    <Path Width="14" Height="14" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2" StrokeStartLineCap="Round" Data="M6 6 L18 18 M18 6 L6 18" />
                 </Button>
             </Grid>
 
@@ -40,60 +41,84 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,12">
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,6,12">
                     <TextBlock Text="PROFILE NAME" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource InputBox}" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
-
-                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,12">
-                    <TextBlock Text="ENGINE" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <RadioButton GroupName="Engine" Content="PostgreSQL" IsChecked="{Binding IsPostgresChecked}" Margin="0,0,16,0" VerticalAlignment="Center" />
-                    <RadioButton GroupName="Engine" Content="SQL Server" IsChecked="{Binding IsSqlServerChecked}" VerticalAlignment="Center" />
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="6,0,0,12">
+                    <TextBlock Text="ENGINE" Style="{StaticResource FieldLabel}" />
+                    <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                              ItemsSource="{Binding Engines}" SelectedItem="{Binding SelectedEngine}" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,6,12">
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,6,12" Visibility="{Binding IsServer, Converter={StaticResource BoolToVisible}}">
                     <TextBlock Text="HOST" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource InputBox}" Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
-                <StackPanel Grid.Row="2" Grid.Column="1" Margin="6,0,0,12">
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="6,0,0,12" Visibility="{Binding IsServer, Converter={StaticResource BoolToVisible}}">
                     <TextBlock Text="PORT" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource InputBox}" Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,6,12">
-                    <TextBlock Text="DATABASE" Style="{StaticResource FieldLabel}" />
-                    <TextBox Style="{StaticResource InputBox}" Text="{Binding Database, UpdateSourceTrigger=PropertyChanged}" />
+                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,12">
+                    <TextBlock Text="{Binding DatabaseLabel}" Style="{StaticResource FieldLabel}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Style="{StaticResource InputBox}" Text="{Binding Database, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding BrowseSqliteFileCommand}" Content="BROWSE" Margin="8,0,0,0"
+                                Visibility="{Binding IsSqlite, Converter={StaticResource BoolToVisible}}" />
+                    </Grid>
                 </StackPanel>
-                <StackPanel Grid.Row="3" Grid.Column="1" Margin="6,0,0,12" Visibility="{Binding ShowCredentials, Converter={StaticResource BoolToVisible}}">
+
+                <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,6,12" Visibility="{Binding ShowCredentials, Converter={StaticResource BoolToVisible}}">
                     <TextBlock Text="USER" Style="{StaticResource FieldLabel}" />
                     <TextBox Style="{StaticResource InputBox}" Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
-
-                <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,6,0" Visibility="{Binding ShowCredentials, Converter={StaticResource BoolToVisible}}">
+                <StackPanel Grid.Row="3" Grid.Column="1" Margin="6,0,0,12" Visibility="{Binding ShowCredentials, Converter={StaticResource BoolToVisible}}">
                     <TextBlock Text="PASSWORD" Style="{StaticResource FieldLabel}" />
-                    <Border BorderBrush="{StaticResource BorderSoft}" BorderThickness="1.5" CornerRadius="8" Background="White">
-                        <PasswordBox x:Name="PasswordInput" BorderThickness="0" Padding="11,8" FontSize="12.5" Background="Transparent" />
-                    </Border>
+                    <PasswordBox x:Name="PasswordInput" Style="{StaticResource InputPasswordBox}" />
                 </StackPanel>
-                <StackPanel Grid.Row="4" Grid.Column="1" Margin="6,0,0,0">
-                    <StackPanel Visibility="{Binding IsPostgres, Converter={StaticResource BoolToVisible}}">
-                        <TextBlock Text="DEFAULT SCHEMA" Style="{StaticResource FieldLabel}" />
-                        <TextBox Style="{StaticResource InputBox}" Text="{Binding DefaultSchema, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
-                    <StackPanel Visibility="{Binding IsSqlServer, Converter={StaticResource BoolToVisible}}" VerticalAlignment="Bottom">
-                        <TextBlock Text="AUTHENTICATION" Style="{StaticResource FieldLabel}" />
-                        <CheckBox Content="Use Windows Authentication" IsChecked="{Binding SqlIntegratedSecurity}" VerticalAlignment="Center" Margin="0,6,0,0" />
-                    </StackPanel>
+
+                <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,6,12" Visibility="{Binding ShowDefaultSchema, Converter={StaticResource BoolToVisible}}">
+                    <TextBlock Text="DEFAULT SCHEMA (optional)" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputBox}" Text="{Binding DefaultSchema, UpdateSourceTrigger=PropertyChanged}" />
                 </StackPanel>
+                <StackPanel Grid.Row="4" Grid.Column="1" Margin="6,0,0,12" VerticalAlignment="Bottom">
+                    <CheckBox Style="{StaticResource DesignCheck}" Content="Use Windows Authentication" IsChecked="{Binding SqlIntegratedSecurity}" Margin="0,0,0,10"
+                              Visibility="{Binding IsSqlServer, Converter={StaticResource BoolToVisible}}" />
+                    <CheckBox Style="{StaticResource DesignCheck}" Content="Database field is a SID (not a service name)" IsChecked="{Binding OracleUseSid}" Margin="0,0,0,10"
+                              Visibility="{Binding IsOracle, Converter={StaticResource BoolToVisible}}" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,4">
+                    <TextBlock Text="EXTRA CONNECTION OPTIONS (optional, key=value;...)" Style="{StaticResource FieldLabel}" />
+                    <TextBox Style="{StaticResource InputBox}" FontFamily="{StaticResource FontMono}" Text="{Binding ExtraOptions, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Appended to the generated connection string, e.g. SSL Mode=Require;  or  Encrypt=True" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="6" Grid.ColumnSpan="2" x:Name="TestResultText" FontSize="11.5" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource Secondary}" />
             </Grid>
 
             <!-- actions -->
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-                <Button Style="{StaticResource GhostButton}" Click="CancelBtn_Click" Content="Cancel" Padding="18,9" Margin="0,0,8,0" />
-                <Button Style="{StaticResource PrimaryButton}" Click="SaveBtn_Click" Content="Save Profile" />
-            </StackPanel>
+            <Grid Margin="0,18,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" x:Name="TestBtn" Style="{StaticResource GhostButton}" Click="TestBtn_Click" Content="Test Connection" Padding="16,9" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Style="{StaticResource GhostButton}" Click="CancelBtn_Click" Content="Cancel" Padding="18,9" Margin="0,0,8,0" />
+                    <Button Style="{StaticResource PrimaryButton}" Click="SaveBtn_Click" Content="Save Profile" />
+                </StackPanel>
+            </Grid>
         </StackPanel>
     </Border>
 </Window>
