@@ -5,10 +5,11 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="PgBackupManager"
         Icon="Assets/app.ico"
-        Height="900" Width="1040"
-        MinHeight="640" MinWidth="900"
+        Height="880" Width="1320"
+        MinHeight="640" MinWidth="1040"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource AppBg}"
+        Background="{DynamicResource AppBg}"
+        Foreground="{DynamicResource Body}"
         FontFamily="{StaticResource FontUI}"
         WindowStyle="None"
         UseLayoutRounding="True"
@@ -18,7 +19,7 @@
         <shell:WindowChrome CaptionHeight="42" ResizeBorderThickness="6" CornerRadius="0" GlassFrameThickness="0" />
     </shell:WindowChrome.WindowChrome>
 
-    <Border BorderBrush="{StaticResource Navy}" BorderThickness="1">
+    <Border BorderBrush="{DynamicResource TitleBar}" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="42" />
@@ -26,7 +27,7 @@
             </Grid.RowDefinitions>
 
             <!-- TITLE BAR -->
-            <Grid Grid.Row="0" Background="{StaticResource Navy}">
+            <Grid Grid.Row="0" Background="{DynamicResource TitleBar}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -36,8 +37,8 @@
                     <Border Width="25" Height="25" CornerRadius="7" VerticalAlignment="Center">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="{StaticResource TealColor}" Offset="0" />
-                                <GradientStop Color="{StaticResource Teal2Color}" Offset="1" />
+                                <GradientStop Color="{DynamicResource TealColor}" Offset="0" />
+                                <GradientStop Color="{DynamicResource Teal2Color}" Offset="1" />
                             </LinearGradientBrush>
                         </Border.Background>
                         <Path Width="14" Height="14" Stretch="Uniform" Stroke="White" StrokeThickness="2"
@@ -46,53 +47,90 @@
                     </Border>
                     <TextBlock Text="PgBackupManager" Foreground="White" FontWeight="Bold" FontSize="13"
                                VerticalAlignment="Center" Margin="10,0,0,0" />
+                    <TextBlock Text="Database Studio" Foreground="{DynamicResource TitleText}" FontSize="12"
+                               VerticalAlignment="Center" Margin="8,0,0,0" />
                     <Border BorderBrush="#FF2C456B" BorderThickness="1" CornerRadius="5" Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center">
-                        <TextBlock x:Name="VersionBadge" Foreground="#FF6885AA" FontWeight="Bold" FontSize="9.5" />
+                        <TextBlock x:Name="VersionBadge" Foreground="{DynamicResource TitleText}" FontWeight="Bold" FontSize="9.5" />
                     </Border>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Stretch"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="ThemeBtn" Click="ThemeBtn_Click" Style="{StaticResource TitleBarButton}" Width="44" ToolTip="Toggle light / dark theme">
+                        <Path x:Name="ThemeGlyph" Width="15" Height="15" Stretch="Uniform" Stroke="{DynamicResource TitleText}" StrokeThickness="1.7"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Data="M21 12.8 A9 9 0 1 1 11.2 3 A7 7 0 0 0 21 12.8 Z" />
+                    </Button>
                     <Button x:Name="MinBtn" Click="MinBtn_Click" Style="{StaticResource TitleBarButton}" Width="44">
-                        <Path Width="14" Height="14" Stretch="Uniform" Stroke="#FFAEBFD4" StrokeThickness="1.6" Data="M5 12 L19 12" />
+                        <Path Width="14" Height="14" Stretch="Uniform" Stroke="{DynamicResource TitleText}" StrokeThickness="1.6" Data="M5 12 L19 12" />
                     </Button>
                     <Button x:Name="MaxBtn" Click="MaxBtn_Click" Style="{StaticResource TitleBarButton}" Width="44">
-                        <Border Width="13" Height="13" BorderBrush="#FFAEBFD4" BorderThickness="1.6" CornerRadius="1.5" />
+                        <Border Width="13" Height="13" BorderBrush="{DynamicResource TitleText}" BorderThickness="1.6" CornerRadius="1.5" />
                     </Button>
                     <Button x:Name="CloseBtn" Click="CloseBtn_Click" Style="{StaticResource TitleCloseButton}" Width="44">
-                        <Path x:Name="CloseGlyph" Width="14" Height="14" Stretch="Uniform" Stroke="#FFAEBFD4" StrokeThickness="1.7"
+                        <Path x:Name="CloseGlyph" Width="14" Height="14" Stretch="Uniform" Stroke="{DynamicResource TitleText}" StrokeThickness="1.7"
                               StrokeStartLineCap="Round" Data="M6 6 L18 18 M18 6 L6 18" />
                     </Button>
                 </StackPanel>
             </Grid>
 
-            <!-- TABS + CONTENT -->
-            <TabControl Grid.Row="1" Style="{StaticResource DesignTabControl}" ItemContainerStyle="{StaticResource DesignTabItem}">
-                <TabItem Header="Backup" IsSelected="True">
+            <!-- SIDEBAR + CONTENT -->
+            <TabControl x:Name="Nav" Grid.Row="1" Style="{StaticResource SideNavTabControl}" ItemContainerStyle="{StaticResource SideNavItem}"
+                        SelectionChanged="Nav_SelectionChanged">
+                <TabItem Header="WORKSPACE" Style="{StaticResource SideNavGroup}" />
+                <TabItem Header="SQL Editor" Name="Editor" Tag="M8 7 L3 12 L8 17 M16 7 L21 12 L16 17 M14 4 L10 20">
+                    <views:SqlEditorView />
+                </TabItem>
+                <TabItem Header="Transfer" Name="Transfer" Tag="M7 4 L3 8 L7 12 M3 8 H21 M17 12 L21 16 L17 20 M21 16 H3">
+                    <views:TransferView />
+                </TabItem>
+                <TabItem Header="Code Converter" Name="Converter" Tag="M4 20 L20 4 M15 4 H20 V9 M4 4 L9 9 M15 15 L20 20">
+                    <views:ConverterView />
+                </TabItem>
+
+                <TabItem Header="POSTGRESQL" Style="{StaticResource SideNavGroup}" />
+                <TabItem Header="Backup" Name="Backup" Tag="M21 15 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V15 M7 10 L12 15 L17 10 M12 15 V3">
                     <views:BackupView />
                 </TabItem>
-                <TabItem Header="Restore">
+                <TabItem Header="Restore" Name="Restore" Tag="M21 15 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V15 M17 8 L12 3 L7 8 M12 3 V15">
                     <views:RestoreView />
                 </TabItem>
-                <TabItem Header="MSSQL Backup">
-                    <views:MsSqlBackupView />
-                </TabItem>
-                <TabItem Header="MSSQL Restore">
-                    <views:MsSqlRestoreView />
-                </TabItem>
-                <TabItem Header="Copy Schema">
+                <TabItem Header="Copy Schema" Name="CopySchema" Tag="M9 9 H20 V20 H9 Z M5 15 H4 V4 H15 V5">
                     <views:CopySchemaView />
                 </TabItem>
-                <TabItem Header="Sync">
+                <TabItem Header="Sync" Name="Sync" Tag="M21 12 A9 9 0 0 1 5.6 18.4 L3 16 M3 12 A9 9 0 0 1 18.4 5.6 L21 8 M21 3 V8 H16 M3 21 V16 H8">
                     <views:SyncView />
                 </TabItem>
-                <TabItem Header="Import">
+
+                <TabItem Header="SQL SERVER" Style="{StaticResource SideNavGroup}" />
+                <TabItem Header="MSSQL Backup" Name="MsSqlBackup" Tag="M21 15 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V15 M7 10 L12 15 L17 10 M12 15 V3">
+                    <views:MsSqlBackupView />
+                </TabItem>
+                <TabItem Header="MSSQL Restore" Name="MsSqlRestore" Tag="M21 15 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V15 M17 8 L12 3 L7 8 M12 3 V15">
+                    <views:MsSqlRestoreView />
+                </TabItem>
+                <TabItem Header="MSSQL → PG Import" Name="Import" Tag="M12 3 V15 M7 10 L12 15 L17 10 M5 21 H19">
                     <views:ImportView />
                 </TabItem>
-                <TabItem Header="Profiles">
+
+                <TabItem Header="OTHER ENGINES" Style="{StaticResource SideNavGroup}" />
+                <TabItem Header="Engine Backup" Name="EngineBackup" Tag="M4 6 A8 3 0 0 0 20 6 A8 3 0 0 0 4 6 M4 6 V18 A8 3 0 0 0 20 18 V6 M4 12 A8 3 0 0 0 20 12">
+                    <views:EngineBackupView />
+                </TabItem>
+
+                <TabItem Header="AUTOMATION" Style="{StaticResource SideNavGroup}" />
+                <TabItem Header="Scheduler" Name="Scheduler" Tag="M3 5 H21 V21 H3 Z M16 3 V7 M8 3 V7 M3 10 H21">
+                    <views:SchedulerView />
+                </TabItem>
+                <TabItem Header="History" Name="History" Tag="M12 3 A9 9 0 1 0 12 21 A9 9 0 0 0 12 3 M12 7 V12 L15 15">
+                    <views:HistoryView />
+                </TabItem>
+
+                <TabItem Header="SETUP" Style="{StaticResource SideNavGroup}" />
+                <TabItem Header="Connections" Name="Profiles" Tag="M12 12 A4 4 0 1 0 12 4 A4 4 0 0 0 12 12 M4 21 A8 8 0 0 1 20 21">
                     <views:ProfilesView />
                 </TabItem>
-                <TabItem Header="Settings">
+                <TabItem Header="Settings" Name="Settings" Tag="M4 21 V14 M4 10 V3 M12 21 V12 M12 8 V3 M20 21 V16 M20 12 V3 M1 14 H7 M9 8 H15 M17 16 H23">
                     <views:SettingsView />
                 </TabItem>
             </TabControl>
