@@ -7,7 +7,7 @@
         <vm:SyncViewModel />
     </UserControl.DataContext>
 
-    <Grid Background="{StaticResource AppBg}">
+    <Grid Background="{DynamicResource AppBg}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -16,7 +16,7 @@
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,18,24,8">
             <StackPanel>
                 <TextBlock Text="Sync" Style="{StaticResource H1}" Margin="0,0,0,4" />
-                <TextBlock Foreground="{StaticResource Muted}" FontSize="12.5" Margin="0,0,0,16" TextWrapping="Wrap"
+                <TextBlock Foreground="{DynamicResource Muted}" FontSize="12.5" Margin="0,0,0,16" TextWrapping="Wrap"
                            Text="Bring a target schema up to date with a source schema — same server or a different one, same schema name or a different one. Only what's missing or different is touched." />
 
                 <!-- Source / Target -->
@@ -40,7 +40,7 @@
                     </Border>
 
                     <Path Grid.Column="1" Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center" Margin="14,0"
-                          Stroke="{StaticResource Muted}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Stroke="{DynamicResource Muted}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                           Data="M5 12 h14 M13 6 l6 6 -6 6" />
 
                     <Border Grid.Column="2" Style="{StaticResource Card}" Padding="16">
@@ -87,7 +87,7 @@
                                     <ComboBoxItem Content="Mirror (merge + delete target-only rows)" />
                                 </ComboBox>
                             </StackPanel>
-                            <TextBlock Grid.Column="1" VerticalAlignment="Bottom" Foreground="{StaticResource Secondary}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10">
+                            <TextBlock Grid.Column="1" VerticalAlignment="Bottom" Foreground="{DynamicResource Secondary}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10">
                                 <Run Text="Upsert/Mirror need a primary key on the target table." />
                             </TextBlock>
                         </Grid>
@@ -115,7 +115,7 @@
                                     <Button Style="{StaticResource GhostButton}" Command="{Binding SelectNoneTablesCommand}" Content="NONE" Padding="9,3" FontSize="10" />
                                 </StackPanel>
                             </Grid>
-                            <Border BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8">
+                            <Border BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="8">
                                 <ScrollViewer Height="180" VerticalScrollBarVisibility="Auto" Padding="10,6">
                                     <ItemsControl ItemsSource="{Binding AvailableTables}">
                                         <ItemsControl.ItemTemplate>
@@ -142,7 +142,7 @@
                                     <Button Style="{StaticResource GhostButton}" Command="{Binding SelectNoneRoutinesCommand}" Content="NONE" Padding="9,3" FontSize="10" />
                                 </StackPanel>
                             </Grid>
-                            <Border BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8">
+                            <Border BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="8">
                                 <ScrollViewer Height="180" VerticalScrollBarVisibility="Auto" Padding="10,6">
                                     <ItemsControl ItemsSource="{Binding AvailableRoutines}">
                                         <ItemsControl.ItemTemplate>
@@ -158,12 +158,12 @@
                 </Grid>
 
                 <!-- Dry run + note -->
-                <Border Background="{StaticResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,0,0,16">
+                <Border Background="{DynamicResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,0,0,16">
                     <StackPanel Orientation="Horizontal">
                         <CheckBox Style="{StaticResource DesignCheck}" Content="Dry run (preview only — no changes made)" IsChecked="{Binding DryRun}" Margin="0,0,18,0" VerticalAlignment="Center" />
-                        <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0" Fill="{StaticResource Teal}"
+                        <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0" Fill="{DynamicResource Teal}"
                               Data="M12 2 L4 5 v6 c0 5 3.5 8 8 9 c4.5 -1 8 -4 8 -9 V5 Z M10.5 13.5 L8 11 l-1.3 1.3 L10.5 16 L17 9.5 L15.7 8.2 Z" />
-                        <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{StaticResource Secondary}" TextWrapping="Wrap">
+                        <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{DynamicResource Secondary}" TextWrapping="Wrap">
                             <Run Text="Left on by default:" FontWeight="Bold" />
                             <Run Text="switch it off only once the preview log looks right. Existing target-only tables, columns and rows are never dropped unless you pick Mirror." />
                         </TextBlock>
@@ -181,8 +181,8 @@
                         <TextBlock Text="COPY LOG" />
                     </Button>
                 </Grid>
-                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{StaticResource TermBorder}" BorderThickness="1" ClipToBounds="True">
-                    <ScrollViewer Background="{StaticResource TermBg}" Height="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
+                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{DynamicResource TermBorder}" BorderThickness="1" ClipToBounds="True">
+                    <ScrollViewer Background="{DynamicResource TermBg}" Height="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
                         <ItemsControl ItemsSource="{Binding LogLines}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -196,7 +196,7 @@
         </ScrollViewer>
 
         <!-- Footer -->
-        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
+        <Border Grid.Row="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -211,7 +211,7 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0" MinWidth="90"
                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}">
-                    <TextBlock FontSize="11" Foreground="{StaticResource Secondary}" HorizontalAlignment="Right">
+                    <TextBlock FontSize="11" Foreground="{DynamicResource Secondary}" HorizontalAlignment="Right">
                         <Run Text="{Binding ElapsedText, Mode=OneWay}" FontWeight="Bold" />
                         <Run Text=" elapsed" />
                     </TextBlock>

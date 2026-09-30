@@ -1,0 +1,317 @@
+<UserControl x:Class="PgBackupManager.UI.Views.TransferView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:PgBackupManager.UI.ViewModels"
+             xmlns:ctrl="clr-namespace:PgBackupManager.UI.Controls">
+    <UserControl.DataContext>
+        <vm:TransferViewModel />
+    </UserControl.DataContext>
+
+    <UserControl.Resources>
+        <Style x:Key="SlimBar" TargetType="ProgressBar">
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Maximum" Value="100" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Border CornerRadius="3" Background="{DynamicResource BorderSoft}" ClipToBounds="True">
+                            <Grid>
+                                <Border x:Name="PART_Track" />
+                                <Border x:Name="PART_Indicator" CornerRadius="3" Background="{DynamicResource Teal}" HorizontalAlignment="Left" />
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{DynamicResource AppBg}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,18,24,8">
+            <StackPanel>
+                <Grid Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Transfer" Style="{StaticResource H1}" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" Width="200" Margin="0,0,6,0"
+                                  ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" DisplayMemberPath="Name" ToolTip="Load a saved transfer preset" />
+                        <TextBox Style="{StaticResource InputBox}" Width="170" Text="{Binding PresetName, UpdateSourceTrigger=PropertyChanged}" ToolTip="Preset name" Margin="0,0,6,0" />
+                        <Button Style="{StaticResource GhostButton}" Command="{Binding SavePresetCommand}" Content="SAVE PRESET" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock Foreground="{DynamicResource Muted}" FontSize="12.5" Margin="0,0,0,16" TextWrapping="Wrap"
+                           Text="Any engine to any engine — PostgreSQL, SQL Server, Oracle, MySQL/MariaDB, SQLite. Tables are type-mapped and bulk-loaded; views, functions, procedures, packages and triggers are translated by the code converter. The source is only ever read." />
+
+                <!-- Source / target -->
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource Card}" Padding="16">
+                        <StackPanel>
+                            <TextBlock Text="SOURCE (read-only)" Style="{StaticResource CardTitle}" Margin="0,0,0,10" />
+                            <TextBlock Text="CONNECTION" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" Margin="0,0,0,10"
+                                      ItemsSource="{Binding Profiles}" SelectedItem="{Binding SourceProfile}" DisplayMemberPath="DisplayWithEngine" />
+                            <TextBlock Text="SCHEMA" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                                      ItemsSource="{Binding SourceSchemas}" SelectedItem="{Binding SourceSchema}" />
+                        </StackPanel>
+                    </Border>
+                    <Button Grid.Column="1" Style="{StaticResource PillButton}" Command="{Binding SwapCommand}" Margin="12,0" VerticalAlignment="Center" Padding="8" ToolTip="Swap source and target">
+                        <Path Width="16" Height="16" Stretch="Uniform" Stroke="{DynamicResource Secondary}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M7 4 L3 8 L7 12 M3 8 H21 M17 12 L21 16 L17 20 M21 16 H3" />
+                    </Button>
+                    <Border Grid.Column="2" Style="{StaticResource Card}" Padding="16">
+                        <StackPanel>
+                            <TextBlock Text="TARGET" Style="{StaticResource CardTitle}" Margin="0,0,0,10" />
+                            <TextBlock Text="CONNECTION" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" Margin="0,0,0,10"
+                                      ItemsSource="{Binding Profiles}" SelectedItem="{Binding TargetProfile}" DisplayMemberPath="DisplayWithEngine" />
+                            <TextBlock Text="SCHEMA (created if missing)" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" IsEditable="True"
+                                      ItemsSource="{Binding TargetSchemas}" Text="{Binding TargetSchema, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource FontMono}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+                <TextBlock Text="{Binding EngineHint}" FontSize="11.5" Foreground="{DynamicResource Teal}" FontWeight="SemiBold" Margin="2,0,0,12" />
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                    <Button Style="{StaticResource GhostButton}" Command="{Binding LoadObjectsCommand}" Padding="16,8" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <ctrl:Spinner Width="12" Height="12" Margin="0,0,7,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                            <TextBlock Text="Load Objects" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource GhostButton}" Command="{Binding CompareCommand}" Padding="16,8" Content="Compare Row Counts"
+                            ToolTip="Count rows + columns on both sides for the selected tables — nothing is changed." />
+                    <TextBlock Text="{Binding SelectionSummary}" FontSize="12" Foreground="{DynamicResource Secondary}" VerticalAlignment="Center" Margin="16,0,0,0" />
+                </StackPanel>
+
+                <!-- Objects -->
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="14" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource Card}" Padding="14">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Tables.Count, StringFormat='TABLES ({0})'}" Style="{StaticResource CardTitle}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Style="{StaticResource GhostButton}" Command="{Binding AllTablesCommand}" Content="ALL" Padding="9,3" FontSize="10" Margin="0,0,6,0" />
+                                    <Button Style="{StaticResource GhostButton}" Command="{Binding NoTablesCommand}" Content="NONE" Padding="9,3" FontSize="10" />
+                                </StackPanel>
+                            </Grid>
+                            <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="8" Padding="11,7" Margin="0,0,0,8">
+                                <Grid>
+                                    <TextBox Style="{StaticResource BareInput}" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text="Search tables and code objects…" Foreground="{DynamicResource Muted}" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"
+                                               Visibility="{Binding SearchText, Converter={StaticResource EmptyToVisible}}" />
+                                </Grid>
+                            </Border>
+                            <Border BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="8">
+                                <ListBox ItemsSource="{Binding FilteredTables}" Height="250" Background="Transparent" BorderThickness="0" Padding="8,4"
+                                         VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel ItemWidth="230" /></ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem"><ContentPresenter Margin="0,3" /></ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Style="{StaticResource DesignCheck}" Content="{Binding Name}" IsChecked="{Binding IsChecked, Mode=TwoWay}" ToolTip="{Binding Name}" />
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource Card}" Padding="14">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding CodeObjects.Count, StringFormat='CODE OBJECTS ({0})'}" Style="{StaticResource CardTitle}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Style="{StaticResource GhostButton}" Command="{Binding AllCodeCommand}" Content="ALL" Padding="9,3" FontSize="10" Margin="0,0,6,0" />
+                                    <Button Style="{StaticResource GhostButton}" Command="{Binding NoCodeCommand}" Content="NONE" Padding="9,3" FontSize="10" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="Views, functions, procedures, packages, sequences, triggers" FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,0,0,8" TextWrapping="Wrap" />
+                            <Border BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="8">
+                                <ListBox ItemsSource="{Binding FilteredCode}" Height="250" Background="Transparent" BorderThickness="0" Padding="8,4"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem"><ContentPresenter Margin="0,3" /></ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <CheckBox Style="{StaticResource DesignCheck}" IsChecked="{Binding IsChecked, Mode=TwoWay}" Content="{Binding Name}" />
+                                                <Border Background="{DynamicResource TealBadgeBg}" CornerRadius="5" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding TypeLabel}" FontSize="9" FontWeight="Bold" Foreground="{DynamicResource Teal}" />
+                                                </Border>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- Options -->
+                <Border Style="{StaticResource Card}" Padding="16" Margin="0,0,0,14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="EXISTING TABLES" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" ItemsSource="{Binding Modes}" SelectedItem="{Binding Mode}" Margin="0,0,0,10" />
+                            <TextBlock Text="IDENTIFIER CASE" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" ItemsSource="{Binding NameCases}" SelectedItem="{Binding NameCase}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="ROW FILTER (optional, source WHERE clause)" Style="{StaticResource FieldLabel}" />
+                            <TextBox Style="{StaticResource InputBox}" FontFamily="{StaticResource FontMono}" Text="{Binding RowFilter, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"
+                                     ToolTip="Applied to every selected table, e.g.  created_at &gt;= DATE '2024-01-01'" />
+                            <TextBlock Text="COMMIT EVERY N ROWS (0 = one transaction per table)" Style="{StaticResource FieldLabel}" />
+                            <TextBox Style="{StaticResource InputBox}" Text="{Binding CommitEvery, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="4" VerticalAlignment="Center">
+                            <CheckBox Style="{StaticResource DesignCheck}" Content="Dry run (plan only — nothing changes)" IsChecked="{Binding DryRun}" Margin="0,0,0,10" />
+                            <CheckBox Style="{StaticResource DesignCheck}" Content="Apply converted code to target" IsChecked="{Binding ApplyCode}" Margin="0,0,0,10"
+                                      ToolTip="Off: code is only written to the transfer script for review (recommended first time)" />
+                            <CheckBox Style="{StaticResource DesignCheck}" Content="Continue with next table on error" IsChecked="{Binding ContinueOnError}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Progress + per-table -->
+                <Border Style="{StaticResource Card}" Padding="16" Margin="0,0,0,14">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="PROGRESS" Style="{StaticResource CardTitle}" />
+                            <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding OpenScriptCommand}" Content="OPEN TRANSFER SCRIPT" Padding="10,4" FontSize="10"
+                                    ToolTip="Every DDL statement + converted code from the last run, opened in the SQL Editor" />
+                        </Grid>
+                        <ProgressBar Style="{StaticResource SlimBar}" Value="{Binding OverallPercent}" Margin="0,0,0,6" />
+                        <ProgressBar Style="{StaticResource SlimBar}" Value="{Binding TablePercent}" Height="4" Opacity="0.6" Margin="0,0,0,6" />
+                        <TextBlock Text="{Binding ProgressText}" FontSize="11.5" Foreground="{DynamicResource Secondary}" Margin="0,0,0,10" />
+                        <DataGrid Style="{StaticResource DesignGrid}" ItemsSource="{Binding RunRows}" AutoGenerateColumns="False" MaxHeight="260" HeadersVisibility="Column">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="TABLE" Binding="{Binding Table}" Width="2*" />
+                                <DataGridTextColumn Header="STATUS" Binding="{Binding Status}" Width="110">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="FontWeight" Value="Bold" />
+                                            <Setter Property="Foreground" Value="{DynamicResource StatusGreen}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Failed}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource StatusRed}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="ROWS" Binding="{Binding Rows}" Width="150" />
+                                <DataGridTextColumn Header="TIME" Binding="{Binding Time}" Width="80" />
+                                <DataGridTextColumn Header="DETAIL" Binding="{Binding Detail}" Width="3*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Terminal -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="OUTPUT" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                    <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding CopyLogCommand}" Padding="10,3" FontSize="10" Content="COPY LOG" />
+                </Grid>
+                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{DynamicResource TermBorder}" BorderThickness="1" ClipToBounds="True">
+                    <ListBox x:Name="LogList" ItemsSource="{Binding LogLines}" Background="{DynamicResource TermBg}" Height="240" BorderThickness="0" Padding="12,8"
+                             VirtualizingPanel.IsVirtualizing="True" ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Style="{StaticResource TermLine}" Foreground="{Binding Converter={StaticResource LogLineBrush}}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer -->
+        <Border Grid.Row="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Margin="0,0,8,0" Fill="{Binding StatusText, Converter={StaticResource StatusBrush}}" />
+                    <TextBlock Text="{Binding StatusText}" FontWeight="Bold" FontSize="13" Foreground="{Binding StatusText, Converter={StaticResource StatusBrush}}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" FontSize="11" Foreground="{DynamicResource Secondary}" VerticalAlignment="Center" Margin="16,0"
+                           Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}">
+                    <Run Text="{Binding ElapsedText, Mode=OneWay}" FontWeight="Bold" /><Run Text=" elapsed" />
+                </TextBlock>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Style="{StaticResource GhostButton}" Command="{Binding CancelCommand}" IsEnabled="{Binding CanCancel}" Content="CANCEL" Margin="0,0,10,0" Padding="20,9" />
+                    <Button Style="{StaticResource PrimaryButton}" Command="{Binding RunCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <ctrl:Spinner Width="13" Height="13" Margin="0,0,8,0" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                            <TextBlock Text="{Binding RunButtonText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
