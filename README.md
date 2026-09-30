@@ -49,6 +49,37 @@ backups work — it makes the process visible and hard to get wrong:
 - **Get notified** when a long-running backup or restore finishes, even if
   you've minimized the app to work on something else.
 
+### New in 3.0 — "Database Studio"
+
+- **Five engines, one app:** PostgreSQL, SQL Server, **Oracle**, **MySQL /
+  MariaDB** and **SQLite** connections side by side (drivers built in — no
+  Oracle or MySQL client install needed to connect).
+- **Transfer** — copy tables (structure + data) from *any* engine to *any*
+  other: create / append / truncate+load / upsert / drop+recreate, dry run,
+  row filter, row-count compare, saved presets. Views, functions, procedures,
+  packages, triggers and sequences go through the code converter.
+- **SQL Editor** — multi-tab editor with syntax highlighting, autocomplete,
+  run selection / statement at cursor, EXPLAIN, transactions, object
+  explorer, query history, result grids, export (CSV/TSV/JSON/INSERT) and
+  CSV import. Runs whole script files, including plain `pg_dump` /
+  `mysqldump` `.sql` dumps (`COPY ... FROM stdin` blocks supported).
+- **Code Converter** — assisted Oracle PL/SQL, T-SQL and MySQL →
+  PostgreSQL (packages become schemas, triggers become trigger functions,
+  NVL/DECODE/SYSDATE/cursors/exceptions mapped) plus PostgreSQL → the
+  others for views/DDL. Anything it can't do safely is flagged for review.
+- **Engine Backup** — SQLite online backup/restore, MySQL `mysqldump`, and
+  Oracle Data Pump (`expdp` / `impdp`).
+- **Scheduler + History** — saved presets run by Windows Task Scheduler
+  (even with the app closed) or from the command line, with a run history
+  and per-run log files.
+- **Dependencies** — one-click download of PostgreSQL client tools and
+  Oracle Instant Client; detection of mysqldump / sqlcmd / LocalDB.
+- **Modern UI** — sidebar navigation, Light / Dark / System themes and 8
+  accent colours, switched live.
+
+See [ROADMAP.md](ROADMAP.md) for the full capability list and the honest
+limits.
+
 ---
 
 ## Installing
@@ -56,7 +87,7 @@ backups work — it makes the process visible and hard to get wrong:
 ### Option A — Installer (recommended)
 
 Download **[`installer/dist/PgBackupManager-Setup-2.4.0.exe`](installer/dist/PgBackupManager-Setup-2.4.0.exe)**
-from this repo and run it. It installs the app with a Start Menu shortcut
+from this repo and run it. (Version 3.0.0 must be built with Inno Setup — see *For developers*; 2.4.0 is the latest prebuilt installer.) It installs the app with a Start Menu shortcut
 and an uninstaller — nothing else on the machine is required to *run*
 PgBackupManager itself (the .NET runtime is bundled inside the installer).
 
@@ -113,15 +144,15 @@ Then go to the **Profiles** tab and add your first database connection.
 | Field | Meaning |
 |---|---|
 | Profile Name | Whatever you want to call it — shown everywhere else in the app |
-| Engine | **PostgreSQL** or **SQL Server** — picks which fields apply and which tabs (Backup/Restore vs. MSSQL Backup/Restore) the profile shows up in |
+| Engine | **PostgreSQL**, **SQL Server**, **Oracle**, **MySQL / MariaDB** or **SQLite** — picks which fields apply (Oracle: service name or SID; SQLite: a file path) and which pages the profile shows up in |
 | Host / Port | Where the server is. Port defaults to 5432 (PostgreSQL) / 1433 (SQL Server) and flips automatically when you change Engine, unless you've already typed your own |
 | Database | The database name |
 | User / Password | PostgreSQL: always used. SQL Server: only used when "Use Windows Authentication" is unchecked — otherwise it connects as the account running PgBackupManager. Password is encrypted with Windows DPAPI and can only be decrypted by your own Windows user account on this machine |
 | Default Schema | PostgreSQL only, optional and informational |
 
-Use **Test Connection** to confirm it connects before relying on it. **EDIT**
+Use **Test Connection** (also available inside the editor dialog, before saving) to confirm it connects before relying on it. **Extra connection options** appends raw `key=value;` pairs (SSL mode, timeouts...) to the generated connection string. **EDIT**
 and **DELETE** work on whichever profile is selected in the list. The
-Profiles list shows a **PG** / **MSSQL** badge next to each name so a mixed
+Profiles list shows an engine badge (**PG** / **MSSQL** / **ORACLE** / **MYSQL** / **SQLITE**) next to each name so a mixed
 list stays easy to scan.
 
 ### 2. Take a backup (PostgreSQL)
@@ -283,6 +314,75 @@ keep under your Default Backup Root. It shows a live preview of how many
 files are currently eligible for deletion, and **RUN CLEANUP NOW** deletes
 them — nothing is deleted automatically in the background.
 
+### 8. Transfer between engines
+
+**Transfer** page: pick a **source** and a **target** connection (any two
+engines — or the same one), **Load Objects**, tick tables and/or code
+objects, choose what happens to **existing tables**, then **Preview Plan**
+(dry run) and **Run Transfer**.
+
+- **Identifier case** — *Target default* lower-cases names for PostgreSQL
+  and upper-cases for Oracle, so `EMP_NO` from Oracle arrives as `emp_no`.
+- **Existing tables** — append, truncate + load, upsert by primary key,
+  drop + recreate, or structure only.
+- **Row filter / commit every N rows** — for partial copies and very large
+  tables.
+- **Compare Row Counts** — columns + real `COUNT(*)` on both sides.
+- Every run writes a **transfer script** (all DDL + converted code) under
+  *Documents\PgBackupManager\transfer-scripts* — **Open Transfer Script**
+  opens it in the SQL Editor. Code is only executed on the target when
+  *Apply converted code* is ticked.
+- PostgreSQL targets get their sequences moved past the imported ids.
+- **Save Preset** stores the whole setup for re-use or scheduling.
+
+The target connection is never pre-selected — pick it deliberately.
+
+### 9. SQL Editor
+
+Pick a connection (it connects on first run) and a default schema.
+**Ctrl+Enter / F5** runs the selection (or everything),
+**Ctrl+Shift+Enter** runs the statement under the cursor, **Ctrl+E** shows
+the plan, **Ctrl+Space** completes keywords / tables / columns. Turn
+**Auto-commit** off to work inside one transaction until **Commit** or
+**Rollback**. Right-click objects in the explorer for *Select top 100*,
+*Script source*, *Export data*, *Import CSV*, *Convert* and *Transfer*.
+**Run File…** executes a large script without opening it.
+
+### 10. Code Converter
+
+Choose **From** / **To**, paste code (or *Load objects from a database*) and
+**Convert**. Oracle packages become one PostgreSQL schema per package, so
+`pkg.proc(...)` calls keep working. Review the **Needs review** list and any
+`TODO(convert)` markers, then **Open in SQL Editor** to run it.
+
+### 11. Engine Backup (SQLite / MySQL / Oracle)
+
+- **SQLite** — hot backup to a `.db` file and restore from one.
+- **MySQL / MariaDB** — `mysqldump` backup (client must be installed);
+  restore replays the `.sql` in-app.
+- **Oracle** — Data Pump export/import. The `.dmp` lives on the **database
+  server** in a DIRECTORY object (list them with **LIST**); needs Oracle
+  Instant Client (Settings → Dependencies → Download).
+
+### 12. Scheduler, presets and the command line
+
+Presets come from the Transfer page or the forms on the **Scheduler** page
+(backup presets for PostgreSQL / SQL Server / MySQL / SQLite, and script
+presets). **Create Schedule** registers a Windows Task Scheduler task
+(daily, weekly, hourly or once) under `\PgBackupManager\`. Headless runs:
+
+```powershell
+PgBackupManager.UI.exe --run-preset "Nightly backup dcci"
+```
+
+Exit code 0 = success, 1 = job failed, 2 = preset not found. Every run —
+scheduled or manual — appears on the **History** page with a log file.
+
+### 13. Themes
+
+**Settings → Appearance**, or the moon/sun button in the title bar. Light,
+Dark or follow Windows, plus 8 accent colours — applied instantly.
+
 ---
 
 ## Safety features
@@ -351,9 +451,25 @@ PgBackupManager.Core/   No-UI engine — pg_dump/pg_restore process runners,
                          Server BACKUP/RESTORE runners (Microsoft.Data.SqlClient,
                          no external tool), DPAPI secret store, settings,
                          filename/retention logic.
+  Providers/             IDbProvider per engine (PG, MSSQL, Oracle, MySQL,
+                         SQLite): catalog, DDL, bulk write, CanonicalType
+                         mapping + value coercion.
+  Sql/                   Tokenizer, script splitter (psql / GO / SQL*Plus "/" /
+                         DELIMITER aware) and the code converters.
+  Services/              TransferRunner, QueryExecutor, CsvTools, presets,
+                         history, Task Scheduler, dependency manager,
+                         headless job runner.
 PgBackupManager.UI/     WPF front-end (MVVM, CommunityToolkit.Mvvm), custom
-                         theme, notification toast, Inno Setup installer
-                         script under installer/.
+                         theme + ThemeService, AvalonEdit SQL editor,
+                         notification toast, Inno Setup installer script
+                         under installer/.
+PgBackupManager.Tests/  xUnit — splitter, converters, type mapping, coercion.
+```
+
+Tests:
+
+```powershell
+dotnet test PgBackupManager.Tests/PgBackupManager.Tests.csproj
 ```
 
 Build:

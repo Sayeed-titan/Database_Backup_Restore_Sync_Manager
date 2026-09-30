@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="PgBackupManager.Core/PgBackupManager.Core.csproj" />
   <Project Path="PgBackupManager.UI/PgBackupManager.UI.csproj" />
+  <Project Path="PgBackupManager.Tests/PgBackupManager.Tests.csproj" />
 </Solution>
