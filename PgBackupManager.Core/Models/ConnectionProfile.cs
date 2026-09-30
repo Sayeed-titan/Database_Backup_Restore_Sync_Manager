@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using Microsoft.Data.SqlClient;
 
 namespace PgBackupManager.Core.Models;
@@ -23,10 +24,56 @@ public sealed class ConnectionProfile
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 
-    public string BuildConnectionString(string plaintextPassword) => Engine switch
+    // Oracle only — Database holds a SERVICE_NAME by default; tick this when
+    // it's an old-style SID instead.
+    public bool OracleUseSid { get; set; }
+
+    // Extra "key=value;..." pairs appended to the generated connection string
+    // (any engine) — escape hatch for SSL modes, timeouts, wallets, etc.
+    public string? ExtraOptions { get; set; }
+
+    public static int DefaultPort(DbEngine engine) => engine switch
     {
-        DbEngine.SqlServer => BuildSqlServerConnectionString(plaintextPassword),
-        _ => $"Host={Host};Port={Port};Database={Database};Username={Username};Password={plaintextPassword};Timeout=10;CommandTimeout=60;Include Error Detail=true",
+        DbEngine.SqlServer => 1433,
+        DbEngine.Oracle => 1521,
+        DbEngine.MySql => 3306,
+        DbEngine.Sqlite => 0,
+        _ => 5432,
+    };
+
+    public string BuildConnectionString(string plaintextPassword)
+    {
+        var cs = Engine switch
+        {
+            DbEngine.SqlServer => BuildSqlServerConnectionString(plaintextPassword),
+            DbEngine.Oracle => BuildOracleConnectionString(plaintextPassword),
+            DbEngine.MySql => $"Server={Host};Port={Port};Database={Database};User ID={Username};Password={plaintextPassword};" +
+                              "Connection Timeout=15;Default Command Timeout=0;Allow Zero DateTime=True;Convert Zero DateTime=True;" +
+                              "AllowUserVariables=True;AllowLoadLocalInfile=False;Treat Tiny As Boolean=True",
+            DbEngine.Sqlite => $"Data Source={Database}",
+            _ => $"Host={Host};Port={Port};Database={Database};Username={Username};Password={plaintextPassword};Timeout=10;CommandTimeout=60;Include Error Detail=true",
+        };
+        var extra = ExtraOptions?.Trim().Trim(';');
+        return string.IsNullOrEmpty(extra) ? cs : cs.TrimEnd(';') + ";" + extra;
+    }
+
+    private string BuildOracleConnectionString(string plaintextPassword)
+    {
+        var port = Port > 0 ? Port : 1521;
+        var dataSource = OracleUseSid
+            ? $"(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={Host})(PORT={port}))(CONNECT_DATA=(SID={Database})))"
+            : $"//{Host}:{port}/{Database}";
+        return $"User Id={Username};Password=\"{plaintextPassword.Replace("\"", "")}\";Data Source={dataSource};Connection Timeout=15;Statement Cache Size=0";
+    }
+
+    // The schema a fresh object browser/transfer should start in.
+    public string ResolveDefaultSchema() => !string.IsNullOrWhiteSpace(DefaultSchema) ? DefaultSchema! : Engine switch
+    {
+        DbEngine.SqlServer => "dbo",
+        DbEngine.Oracle => Username.ToUpperInvariant(),
+        DbEngine.MySql => Database,
+        DbEngine.Sqlite => "main",
+        _ => "public",
     };
 
     private string BuildSqlServerConnectionString(string plaintextPassword)
@@ -56,4 +103,16 @@ public sealed class ConnectionProfile
 
     // Shown in profile dropdowns (custom ComboBox template falls back to ToString()).
     public override string ToString() => string.IsNullOrWhiteSpace(Name) ? $"{Database}@{Host}" : Name;
+
+    [JsonIgnore] public string EngineLabel => Engine switch
+    {
+        DbEngine.SqlServer => "MSSQL",
+        DbEngine.Oracle => "ORACLE",
+        DbEngine.MySql => "MYSQL",
+        DbEngine.Sqlite => "SQLITE",
+        _ => "PG",
+    };
+
+    // "[PG] name" — for dropdowns that mix engines.
+    [JsonIgnore] public string DisplayWithEngine => $"[{EngineLabel}]  {this}";
 }
