@@ -89,20 +89,30 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="TABLES" Style="{StaticResource CardTitle}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="0" Text="{Binding AvailableTables.Count, StringFormat='TABLES ({0})'}" Style="{StaticResource CardTitle}" VerticalAlignment="Center" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
                                 <Button Style="{StaticResource GhostButton}" Command="{Binding SelectAllTablesCommand}" Content="ALL" Padding="9,3" FontSize="10" Margin="0,0,6,0" />
                                 <Button Style="{StaticResource GhostButton}" Command="{Binding SelectNoneTablesCommand}" Content="NONE" Padding="9,3" FontSize="10" />
                             </StackPanel>
                         </Grid>
+                        <Border Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8" Padding="11,7" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" Stroke="{StaticResource Muted}" StrokeThickness="2" Margin="0,0,8,0"
+                                      Data="M11 4 a7 7 0 1 0 0 14 a7 7 0 0 0 0 -14 M21 21 L16.65 16.65" />
+                                <Grid Grid.Column="1">
+                                    <TextBox Style="{StaticResource BareInput}" Text="{Binding TableSearchText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Text="Search tables…" Foreground="{StaticResource Muted}" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"
+                                               Visibility="{Binding TableSearchText, Converter={StaticResource EmptyToVisible}}" />
+                                </Grid>
+                            </Grid>
+                        </Border>
                         <Border BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8">
-                            <ScrollViewer Height="220" VerticalScrollBarVisibility="Auto" Padding="10,6">
-                                <ItemsControl ItemsSource="{Binding AvailableTables}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Orientation="Vertical" MaxHeight="600" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
+                            <ScrollViewer Height="260" VerticalScrollBarVisibility="Auto" Padding="10,6">
+                                <ItemsControl ItemsSource="{Binding FilteredTables}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <CheckBox Style="{StaticResource DesignCheck}" Content="{Binding Label}" IsChecked="{Binding IsChecked, Mode=TwoWay}" Margin="0,3,24,3" />

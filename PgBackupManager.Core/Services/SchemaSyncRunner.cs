@@ -72,6 +72,46 @@ public sealed class SchemaSyncRunner
             {
                 await EnsureTargetSchemaAsync(tgt, o, ct);
 
+                // Missing tables are created together in ONE pg_dump/psql pass
+                // rather than one dump per table: pg_dump orders a multi-table
+                // dump as every CREATE TABLE first, then every ALTER TABLE ADD
+                // CONSTRAINT (foreign keys) at the end — the same safe order a
+                // full schema dump uses. Dumping table-by-table loses that:
+                // a table whose FK points at another table still missing in
+                // the target (e.g. dbi_application -> dbi_batch, alphabetically
+                // dumped first) fails with "relation ... does not exist" the
+                // moment its own FK constraint tries to apply.
+                var missingTables = new List<string>();
+                foreach (var table in o.Tables)
+                {
+                    if (!await TableExistsAsync(tgt, o.TargetSchema, table, ct))
+                        missingTables.Add(table);
+                }
+                if (missingTables.Count > 0)
+                {
+                    // A column default like "... bigint DEFAULT nextval('foo_seq')"
+                    // needs foo_seq's own CREATE SEQUENCE to exist too — but if
+                    // foo_seq isn't "owned by" any column of the tables actually
+                    // selected here (SERIAL/IDENTITY columns aside, a plain
+                    // nextval() default can point at any sequence), --table=
+                    // for just these tables won't pull it in on its own, and the
+                    // very first CREATE TABLE that references it fails outright.
+                    // Found here and folded into the same dump so it lands
+                    // before the table that needs it, same fix as the FK case.
+                    var missingSeqs = new List<string>();
+                    foreach (var (seqSchema, seqName) in await GetReferencedSequencesAsync(src, o.SourceSchema, missingTables, ct))
+                    {
+                        if (!string.Equals(seqSchema, o.SourceSchema, StringComparison.OrdinalIgnoreCase)) continue; // cross-schema sequence — out of scope for this sync
+                        if (!await SequenceExistsAsync(tgt, o.TargetSchema, seqName, ct))
+                            missingSeqs.Add(seqName);
+                    }
+
+                    Log($"  [table] {missingTables.Count} table(s) missing in target: {string.Join(", ", missingTables)} -> " +
+                        (o.DryRun ? "would CREATE (full DDL via pg_dump, all together so FK/sequence order is correct)." : "creating together..."));
+                    if (missingSeqs.Count > 0)
+                        Log($"  [table] also pulling in {missingSeqs.Count} sequence(s) referenced by column defaults: {string.Join(", ", missingSeqs)}");
+                    if (!o.DryRun) await CreateTablesViaDumpAsync(o, missingTables, missingSeqs, ct);
+                }
 
                 foreach (var table in o.Tables)
                 {
@@ -215,6 +255,17 @@ WHERE n.nspname=@s AND p.proname=@n AND pg_get_function_identity_arguments(p.oid
     // word-boundary schema rename SchemaCopyRunner verified against real COPY
     // data, even though a schema-only dump never contains a COPY block.
     private async Task CreateTableViaDumpAsync(SyncOptions o, string table, CancellationToken ct)
+        => await CreateTablesViaDumpAsync(o, new List<string> { table }, new List<string>(), ct);
+
+    // Same as above but for several tables (plus any extra sequences their
+    // column defaults need) in ONE pg_dump/psql pass — required whenever any
+    // of them has a foreign key to another table in the same batch, or a
+    // DEFAULT nextval() pointing at a sequence not owned by the batch itself,
+    // since pg_dump only orders CREATE SEQUENCE / CREATE TABLE before the
+    // ALTER TABLE ADD CONSTRAINT / DEFAULT statements that need them when it
+    // dumps them all together. One dump per table loses that guarantee
+    // entirely.
+    private async Task CreateTablesViaDumpAsync(SyncOptions o, List<string> tables, List<string> extraSequences, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(o.PgDumpExe) || string.IsNullOrEmpty(o.PsqlExe))
             throw new InvalidOperationException("pg_dump.exe / psql.exe not configured — set them in Settings to create missing tables.");
@@ -223,17 +274,21 @@ WHERE n.nspname=@s AND p.proname=@n AND pg_get_function_identity_arguments(p.oid
         var renamedFile = Path.Combine(Path.GetTempPath(), $"sync_{Guid.NewGuid():N}_renamed.sql");
         var srcEnv = new Dictionary<string, string> { ["PGPASSWORD"] = o.SourcePassword };
         var tgtEnv = new Dictionary<string, string> { ["PGPASSWORD"] = o.TargetPassword };
+        var tableList = string.Join(", ", tables);
         try
         {
             var dumpArgs = new List<string>
             {
                 $"--host={o.SourceProfile.Host}", $"--port={o.SourceProfile.Port}",
                 $"--username={o.SourceProfile.Username}", $"--dbname={o.SourceProfile.Database}",
-                $"--file={dumpFile}", "--format=plain", "--schema-only",
-                $"--table=\"{o.SourceSchema}\".\"{table}\"", "--no-owner", "--no-privileges", "--no-password",
+                $"--file={dumpFile}", "--format=plain", "--schema-only", "--no-owner", "--no-privileges", "--no-password",
             };
+            foreach (var table in tables)
+                dumpArgs.Add($"--table=\"{o.SourceSchema}\".\"{table}\"");
+            foreach (var seq in extraSequences)
+                dumpArgs.Add($"--table=\"{o.SourceSchema}\".\"{seq}\"");
             var dumpExit = await RunLogged(o.PgDumpExe!, dumpArgs, srcEnv, ct);
-            if (dumpExit != 0) throw new InvalidOperationException($"pg_dump failed (exit {dumpExit}) creating '{table}'.");
+            if (dumpExit != 0) throw new InvalidOperationException($"pg_dump failed (exit {dumpExit}) creating '{tableList}'.");
 
             RenameOrCopy(dumpFile, renamedFile, o.SourceSchema, o.TargetSchema);
 
@@ -244,7 +299,7 @@ WHERE n.nspname=@s AND p.proname=@n AND pg_get_function_identity_arguments(p.oid
                 "--no-password", "--no-psqlrc", "--single-transaction", "-v", "ON_ERROR_STOP=1", $"--file={renamedFile}",
             };
             var restoreExit = await RunLogged(o.PsqlExe!, restoreArgs, tgtEnv, ct);
-            if (restoreExit != 0) throw new InvalidOperationException($"psql failed (exit {restoreExit}) creating '{table}'.");
+            if (restoreExit != 0) throw new InvalidOperationException($"psql failed (exit {restoreExit}) creating '{tableList}'.");
         }
         finally
         {
@@ -491,6 +546,41 @@ WHERE n.nspname=@s AND p.proname=@n AND pg_get_function_identity_arguments(p.oid
         cmd.Parameters.AddWithValue("s", schema);
         cmd.Parameters.AddWithValue("t", table);
         return await cmd.ExecuteScalarAsync(ct) != null;
+    }
+
+    private static async Task<bool> SequenceExistsAsync(NpgsqlConnection conn, string schema, string sequence, CancellationToken ct)
+    {
+        const string sql = "SELECT 1 FROM information_schema.sequences WHERE sequence_schema=@s AND sequence_name=@n";
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("s", schema);
+        cmd.Parameters.AddWithValue("n", sequence);
+        return await cmd.ExecuteScalarAsync(ct) != null;
+    }
+
+    // A column default of "DEFAULT nextval('some_seq'::regclass)" doesn't
+    // necessarily belong to any of the tables it's found on — pg_get_serial_sequence
+    // resolves the real owning sequence regardless, so this catches it even
+    // when it's not a same-name SERIAL/IDENTITY column.
+    private static async Task<List<(string Schema, string Name)>> GetReferencedSequencesAsync(
+        NpgsqlConnection conn, string schema, List<string> tables, CancellationToken ct)
+    {
+        const string sql = @"
+SELECT DISTINCT pg_get_serial_sequence(format('%I.%I', table_schema, table_name), column_name) AS seq
+FROM information_schema.columns
+WHERE table_schema=@s AND table_name = ANY(@t) AND column_default LIKE 'nextval(%';";
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("s", schema);
+        cmd.Parameters.AddWithValue("t", tables.ToArray());
+        var result = new List<(string, string)>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            if (reader.IsDBNull(0)) continue;
+            var full = reader.GetString(0);
+            var dot = full.LastIndexOf('.');
+            result.Add(dot < 0 ? (schema, full) : (full[..dot], full[(dot + 1)..]));
+        }
+        return result;
     }
 
     private static async Task<List<ColumnInfo>> GetColumnsAsync(NpgsqlConnection conn, string schema, string table, CancellationToken ct)

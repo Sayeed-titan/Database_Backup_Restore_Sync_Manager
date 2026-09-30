@@ -34,6 +34,12 @@ public partial class ImportViewModel : ObservableObject
     [ObservableProperty] private string? _sourceSchema = "dbo";
 
     public ObservableCollection<SyncCheckItem> AvailableTables { get; } = new();
+    // What the checkbox list actually shows — a filtered view of AvailableTables
+    // driven by TableSearchText, so a 200+ table source doesn't force scrolling
+    // through the whole alphabet to find one table.
+    public ObservableCollection<SyncCheckItem> FilteredTables { get; } = new();
+    [ObservableProperty] private string _tableSearchText = "";
+    partial void OnTableSearchTextChanged(string value) => ApplyTableFilter();
 
     // Postgres side — reuses the same saved connection profiles as every other tab.
     public ObservableCollection<ConnectionProfile> Profiles { get; } = new();
@@ -114,6 +120,7 @@ public partial class ImportViewModel : ObservableObject
             AvailableTables.Clear();
             foreach (var t in await MsSqlImportRunner.ListTablesAsync(source, SourceSchema))
                 AvailableTables.Add(new SyncCheckItem { Name = t, Label = t, IsChecked = !prevUnchecked.Contains(t) });
+            ApplyTableFilter();
         }
         catch (Exception ex)
         {
@@ -121,6 +128,20 @@ public partial class ImportViewModel : ObservableObject
         }
     }
 
+    private void ApplyTableFilter()
+    {
+        var term = (TableSearchText ?? "").Trim();
+        FilteredTables.Clear();
+        foreach (var t in AvailableTables)
+        {
+            if (string.IsNullOrEmpty(term) || t.Name.Contains(term, StringComparison.OrdinalIgnoreCase))
+                FilteredTables.Add(t);
+        }
+    }
+
+    // ALL/NONE act on every loaded table, not just what the current search
+    // term shows — ticking "ALL" while a filter narrows the view would
+    // otherwise silently untick everything outside that filter.
     [RelayCommand] private void SelectAllTables() { foreach (var t in AvailableTables) t.IsChecked = true; }
     [RelayCommand] private void SelectNoneTables() { foreach (var t in AvailableTables) t.IsChecked = false; }
 
