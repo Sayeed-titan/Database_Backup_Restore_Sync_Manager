@@ -5,13 +5,16 @@ using PgBackupManager.Core.Models;
 
 namespace PgBackupManager.UI.Converters;
 
-/// <summary>DbEngine -> a short badge label ("PG" / "MSSQL") for the Profiles list.</summary>
+/// <summary>DbEngine -> a short badge label ("PG" / "MSSQL" / "ORACLE" / ...) for the Profiles list.</summary>
 public sealed class DbEngineBadgeConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value switch
     {
         DbEngine.SqlServer => "MSSQL",
         DbEngine.PostgreSql => "PG",
+        DbEngine.Oracle => "ORACLE",
+        DbEngine.MySql => "MYSQL",
+        DbEngine.Sqlite => "SQLITE",
         _ => "?"
     };
 
