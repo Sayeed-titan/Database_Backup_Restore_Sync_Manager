@@ -696,6 +696,18 @@
 
     <!-- ============ DATA GRID (results grid, history) ============ -->
     <Style x:Key="DesignGrid" TargetType="DataGrid">
+        <Style.Resources>
+            <!-- top-left "select all" corner cell, otherwise stays system-white in dark mode -->
+            <Style x:Key="{ComponentResourceKey ResourceId=DataGridSelectAllButtonStyle, TypeInTargetAssembly={x:Type DataGrid}}" TargetType="Button">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{DynamicResource CardSubtle}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,0,1,1" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </Style.Resources>
         <Setter Property="Background" Value="{DynamicResource CardBg}" />
         <Setter Property="RowBackground" Value="{DynamicResource CardBg}" />
         <Setter Property="AlternatingRowBackground" Value="{DynamicResource CardSubtle}" />
