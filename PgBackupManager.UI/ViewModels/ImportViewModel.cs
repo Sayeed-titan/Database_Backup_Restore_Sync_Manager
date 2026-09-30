@@ -102,7 +102,7 @@ public partial class ImportViewModel : ObservableObject
 
     public ImportViewModel()
     {
-        foreach (var p in _profileStore.LoadAll().OrderBy(p => p.Name)) Profiles.Add(p);
+        foreach (var p in _profileStore.LoadAll().Where(p => p.Engine == DbEngine.PostgreSql).OrderBy(p => p.Name)) Profiles.Add(p);
         TargetProfile = Profiles.FirstOrDefault();
     }
 

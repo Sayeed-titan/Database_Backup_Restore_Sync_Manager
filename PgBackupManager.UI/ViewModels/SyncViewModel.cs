@@ -69,7 +69,7 @@ public partial class SyncViewModel : ObservableObject
         var srcId = SourceProfile?.Id;
         var tgtId = TargetProfile?.Id;
         Profiles.Clear();
-        foreach (var p in _profileStore.LoadAll().OrderBy(p => p.Name)) Profiles.Add(p);
+        foreach (var p in _profileStore.LoadAll().Where(p => p.Engine == DbEngine.PostgreSql).OrderBy(p => p.Name)) Profiles.Add(p);
         SourceProfile = srcId.HasValue ? Profiles.FirstOrDefault(p => p.Id == srcId) ?? Profiles.FirstOrDefault() : Profiles.FirstOrDefault();
         TargetProfile = tgtId.HasValue ? Profiles.FirstOrDefault(p => p.Id == tgtId) ?? Profiles.FirstOrDefault() : Profiles.FirstOrDefault();
     }

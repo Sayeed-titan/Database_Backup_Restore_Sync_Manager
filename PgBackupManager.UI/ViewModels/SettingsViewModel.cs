@@ -51,6 +51,60 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private int _retentionPreviewCount;
     [ObservableProperty] private string _settingsFilePath = "";
 
+    // Appearance — applied live and persisted immediately on change (not
+    // gated behind Save Settings), like any modern app's theme picker.
+    public IReadOnlyList<string> ThemeModes => ThemeService.Modes;
+    public IReadOnlyList<AccentOption> Accents => ThemeService.Accents;
+    [ObservableProperty] private string _selectedThemeMode = ThemeService.CurrentMode;
+    [ObservableProperty] private AccentOption? _selectedAccent = ThemeService.Accents.FirstOrDefault(a => a.Name == ThemeService.CurrentAccent);
+    partial void OnSelectedThemeModeChanged(string value) => ThemeService.ApplyAndSave(value, SelectedAccent?.Name ?? "Teal");
+    partial void OnSelectedAccentChanged(AccentOption? value) => ThemeService.ApplyAndSave(SelectedThemeMode, value?.Name ?? "Teal");
+    [RelayCommand] private void PickAccent(AccentOption? accent) { if (accent != null) SelectedAccent = accent; }
+
+    [ObservableProperty] private double _editorFontSize = 13;
+    [ObservableProperty] private int _editorMaxRows = 5000;
+
+    // Dependency manager — every external tool the app can use, found or not.
+    public ObservableCollection<ToolStatus> Dependencies { get; } = new();
+    [ObservableProperty] private string _dependencyProgress = "";
+
+    [RelayCommand]
+    private void RefreshDependencies()
+    {
+        Dependencies.Clear();
+        foreach (var d in DependencyManager.Scan(string.IsNullOrWhiteSpace(PgBinDirOverride) ? null : PgBinDirOverride)) Dependencies.Add(d);
+    }
+
+    [RelayCommand]
+    private async Task DownloadDependencyAsync(ToolStatus? tool)
+    {
+        if (tool == null) return;
+        if (tool.Key == "pg") { DownloadPgTools(); RefreshDependencies(); return; }
+        if (tool.Key != "oracle") { OpenDependencyInfo(tool); return; }
+        if (!ConfirmDialog.Confirm(Application.Current?.MainWindow, "Download Oracle Instant Client",
+                "Download Oracle Instant Client (Basic + Tools + SQL*Plus, ~140 MB) from download.oracle.com into your user profile?\n\n" +
+                "No admin rights needed. Use is governed by Oracle's Instant Client license.", confirmText: "Download")) return;
+        try
+        {
+            var progress = new Progress<(string Stage, double Percent)>(p => DependencyProgress = $"{p.Stage}… {p.Percent:N0}%");
+            var dir = await DependencyManager.DownloadOracleInstantClientAsync(progress);
+            DependencyProgress = $"Installed to {dir}";
+            StatusText = "Oracle Instant Client installed — Data Pump (expdp/impdp) and sqlplus are ready.";
+        }
+        catch (Exception ex)
+        {
+            DependencyProgress = "Download failed: " + ex.Message;
+        }
+        RefreshDependencies();
+    }
+
+    [RelayCommand]
+    private void OpenDependencyInfo(ToolStatus? tool)
+    {
+        if (tool?.InfoUrl == null) return;
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(tool.InfoUrl) { UseShellExecute = true }); } catch { }
+    }
+
     public string CurrentVersionText => $"v{UpdateService.CurrentVersion.Major}.{UpdateService.CurrentVersion.Minor}";
 
     public SettingsViewModel()
@@ -71,9 +125,12 @@ public partial class SettingsViewModel : ObservableObject
         NotifyOnCompletion = s.NotifyOnCompletion;
         NotificationDurationSeconds = s.NotificationDurationSeconds;
         FlashTaskbarOnCompletion = s.FlashTaskbarOnCompletion;
+        EditorFontSize = s.EditorFontSize;
+        EditorMaxRows = s.EditorMaxRows;
         SettingsFilePath = _store.FilePath;
         DetectTools();
         PreviewRetention();
+        RefreshDependencies();
     }
 
     private void DetectTools()
@@ -169,17 +226,19 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void Save()
     {
-        _store.Save(new Core.Models.AppSettings
-        {
-            PgBinDirOverride = string.IsNullOrWhiteSpace(PgBinDirOverride) ? null : PgBinDirOverride.Trim(),
-            DefaultBackupRoot = DefaultBackupRoot.Trim(),
-            DefaultRestoreSource = DefaultRestoreSource.Trim(),
-            UseAutoFolders = UseAutoFolders,
-            RetentionDays = RetentionDays,
-            NotifyOnCompletion = NotifyOnCompletion,
-            NotificationDurationSeconds = NotificationDurationSeconds,
-            FlashTaskbarOnCompletion = FlashTaskbarOnCompletion,
-        });
+        // Load-then-modify so fields this form doesn't own (theme, etc.) survive.
+        var s = _store.Load();
+        s.PgBinDirOverride = string.IsNullOrWhiteSpace(PgBinDirOverride) ? null : PgBinDirOverride.Trim();
+        s.DefaultBackupRoot = DefaultBackupRoot.Trim();
+        s.DefaultRestoreSource = DefaultRestoreSource.Trim();
+        s.UseAutoFolders = UseAutoFolders;
+        s.RetentionDays = RetentionDays;
+        s.NotifyOnCompletion = NotifyOnCompletion;
+        s.NotificationDurationSeconds = NotificationDurationSeconds;
+        s.FlashTaskbarOnCompletion = FlashTaskbarOnCompletion;
+        s.EditorFontSize = EditorFontSize is >= 8 and <= 32 ? EditorFontSize : 13;
+        s.EditorMaxRows = EditorMaxRows is > 0 ? EditorMaxRows : 5000;
+        _store.Save(s);
         StatusText = $"Saved to {_store.FilePath}";
     }
 
