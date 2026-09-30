@@ -17,7 +17,8 @@ public sealed class AppSettings
 
     // SQL editor preferences.
     public double EditorFontSize { get; set; } = 13;
-    public int EditorMaxRows { get; set; } = 5000;
+    public int EditorMaxRows { get; set; } = 5000;   // rows fetched per chunk
+    public int EditorPageSize { get; set; } = 500;   // rows shown per grid page
 
     // Sidebar page to reopen on next launch.
     public string? LastPage { get; set; }

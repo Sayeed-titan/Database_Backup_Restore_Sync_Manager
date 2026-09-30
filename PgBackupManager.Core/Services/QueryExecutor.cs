@@ -158,6 +158,37 @@ public sealed class QueryExecutor
         }
     }
 
+    // Next chunk of a paged result: rows of the (already wrapped) page SQL,
+    // formatted exactly like the first fetch so they can be appended by position.
+    public async Task<List<object[]>> FetchRowsAsync(DbConnection conn, DbTransaction? tx, string pageSql, CancellationToken ct = default)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = pageSql;
+        cmd.Transaction = tx;
+        cmd.CommandTimeout = 0;
+        if (cmd is Oracle.ManagedDataAccess.Client.OracleCommand oc) { oc.InitialLOBFetchSize = -1; oc.InitialLONGFetchSize = -1; }
+        await using var reg = ct.Register(() => { try { cmd.Cancel(); } catch { } });
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var rows = new List<object[]>();
+        while (await reader.ReadAsync(ct))
+        {
+            var row = new object[reader.FieldCount];
+            for (int c = 0; c < reader.FieldCount; c++) row[c] = Display(reader, c);
+            rows.Add(row);
+        }
+        return rows;
+    }
+
+    public static async Task<long> CountAsync(DbConnection conn, DbTransaction? tx, string countSql, CancellationToken ct = default)
+    {
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = countSql;
+        cmd.Transaction = tx;
+        cmd.CommandTimeout = 0;
+        await using var reg = ct.Register(() => { try { cmd.Cancel(); } catch { } });
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct));
+    }
+
     public const string NullText = "NULL";
 
     private object Display(DbDataReader reader, int c)
