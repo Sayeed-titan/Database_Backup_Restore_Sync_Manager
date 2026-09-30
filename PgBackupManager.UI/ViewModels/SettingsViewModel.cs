@@ -63,6 +63,7 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty] private double _editorFontSize = 13;
     [ObservableProperty] private int _editorMaxRows = 5000;
+    [ObservableProperty] private int _editorPageSize = 500;
 
     // Dependency manager — every external tool the app can use, found or not.
     public ObservableCollection<ToolStatus> Dependencies { get; } = new();
@@ -127,6 +128,7 @@ public partial class SettingsViewModel : ObservableObject
         FlashTaskbarOnCompletion = s.FlashTaskbarOnCompletion;
         EditorFontSize = s.EditorFontSize;
         EditorMaxRows = s.EditorMaxRows;
+        EditorPageSize = s.EditorPageSize;
         SettingsFilePath = _store.FilePath;
         DetectTools();
         PreviewRetention();
@@ -238,6 +240,7 @@ public partial class SettingsViewModel : ObservableObject
         s.FlashTaskbarOnCompletion = FlashTaskbarOnCompletion;
         s.EditorFontSize = EditorFontSize is >= 8 and <= 32 ? EditorFontSize : 13;
         s.EditorMaxRows = EditorMaxRows is > 0 ? EditorMaxRows : 5000;
+        s.EditorPageSize = EditorPageSize is >= 50 and <= 5000 ? EditorPageSize : 500;
         _store.Save(s);
         StatusText = $"Saved to {_store.FilePath}";
     }

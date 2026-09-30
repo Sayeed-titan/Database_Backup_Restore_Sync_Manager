@@ -73,10 +73,15 @@
                             <TextBlock Text="Font size" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Width="120" />
                             <TextBox Style="{StaticResource InputBox}" Width="66" TextAlignment="Center" Text="{Binding EditorFontSize, UpdateSourceTrigger=LostFocus}" />
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock Text="Rows per page" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Width="120" />
+                            <TextBox Style="{StaticResource InputBox}" Width="90" TextAlignment="Center" Text="{Binding EditorPageSize, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="default grid page size (50 – 5,000; also changeable under each result)" FontSize="11.5" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Max rows shown" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Width="120" />
+                            <TextBlock Text="Rows per fetch" FontSize="12.5" Foreground="{DynamicResource Body}" VerticalAlignment="Center" Width="120" />
                             <TextBox Style="{StaticResource InputBox}" Width="90" TextAlignment="Center" Text="{Binding EditorMaxRows, UpdateSourceTrigger=LostFocus}" />
-                            <TextBlock Text="per result set (export always writes everything)" FontSize="11.5" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <TextBlock Text="rows pulled from the server at a time — Next / Load More fetches the next chunk (export always writes everything)" FontSize="11.5" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap" MaxWidth="520" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
