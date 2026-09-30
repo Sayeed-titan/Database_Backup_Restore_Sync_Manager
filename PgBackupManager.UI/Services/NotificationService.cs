@@ -13,9 +13,21 @@ namespace PgBackupManager.UI.Services;
 // on the HWND directly regardless of window state.
 public static class NotificationService
 {
-    public static void NotifyCompletion(string title, string message, bool success)
+    // record: also append to the History page (existing Backup/Restore/Sync/
+    // Import/Copy pages report through here). Pages that write their own,
+    // richer history entry pass false.
+    public static void NotifyCompletion(string title, string message, bool success, bool record = true)
     {
         var settings = new SettingsStore().Load();
+        if (record)
+        {
+            var kind = title.Contains("Backup", StringComparison.OrdinalIgnoreCase) ? "Backup"
+                : title.Contains("Restore", StringComparison.OrdinalIgnoreCase) ? "Restore"
+                : title.Contains("Import", StringComparison.OrdinalIgnoreCase) ? "Import"
+                : title.Contains("Sync", StringComparison.OrdinalIgnoreCase) ? "Sync"
+                : title.Contains("Cop", StringComparison.OrdinalIgnoreCase) ? "Copy Schema" : "Job";
+            JobHistory.Add(kind, title, message, success);
+        }
 
         Application.Current?.Dispatcher.Invoke(() =>
         {
