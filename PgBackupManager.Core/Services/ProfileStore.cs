@@ -13,6 +13,9 @@ public sealed class ProfileStore
 
     public string FilePath { get; }
 
+    // Raised after any save — views listing profiles refresh themselves.
+    public static event EventHandler? Changed;
+
     public ProfileStore(string? overridePath = null)
     {
         var dir = overridePath ?? Path.Combine(
@@ -34,6 +37,7 @@ public sealed class ProfileStore
     {
         var json = JsonSerializer.Serialize(profiles.ToList(), JsonOpts);
         File.WriteAllText(FilePath, json);
+        Changed?.Invoke(null, EventArgs.Empty);
     }
 
     public void Upsert(ConnectionProfile profile)
