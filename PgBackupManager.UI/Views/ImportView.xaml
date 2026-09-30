@@ -7,7 +7,7 @@
         <vm:ImportViewModel />
     </UserControl.DataContext>
 
-    <Grid Background="{StaticResource AppBg}">
+    <Grid Background="{DynamicResource AppBg}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -16,7 +16,7 @@
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,18,24,8">
             <StackPanel>
                 <TextBlock Text="Import from SQL Server" Style="{StaticResource H1}" Margin="0,0,0,4" />
-                <TextBlock Foreground="{StaticResource Muted}" FontSize="12.5" Margin="0,0,0,16" TextWrapping="Wrap"
+                <TextBlock Foreground="{DynamicResource Muted}" FontSize="12.5" Margin="0,0,0,16" TextWrapping="Wrap"
                            Text="One-way migration into a Postgres schema. SQL Server's .bak format is proprietary — restore it to a live SQL Server first (any recent edition), then point this at that instance. Missing tables are created with type-mapped columns; existing ones only get rows appended." />
 
                 <!-- Source / Target -->
@@ -58,7 +58,7 @@
                     </Border>
 
                     <Path Grid.Column="1" Width="20" Height="20" Stretch="Uniform" VerticalAlignment="Center" Margin="14,0"
-                          Stroke="{StaticResource Muted}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Stroke="{DynamicResource Muted}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                           Data="M5 12 h14 M13 6 l6 6 -6 6" />
 
                     <Border Grid.Column="2" Style="{StaticResource Card}" Padding="16">
@@ -104,22 +104,22 @@
                                 <Button Style="{StaticResource GhostButton}" Command="{Binding SelectNoneTablesCommand}" Content="NONE" Padding="9,3" FontSize="10" />
                             </StackPanel>
                         </Grid>
-                        <Border Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8" Padding="11,7" Margin="0,0,0,8">
+                        <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="8" Padding="11,7" Margin="0,0,0,8">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Path Grid.Column="0" Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" Stroke="{StaticResource Muted}" StrokeThickness="2" Margin="0,0,8,0"
+                                <Path Grid.Column="0" Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" Stroke="{DynamicResource Muted}" StrokeThickness="2" Margin="0,0,8,0"
                                       Data="M11 4 a7 7 0 1 0 0 14 a7 7 0 0 0 0 -14 M21 21 L16.65 16.65" />
                                 <Grid Grid.Column="1">
                                     <TextBox Style="{StaticResource BareInput}" Text="{Binding TableSearchText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Text="Search tables…" Foreground="{StaticResource Muted}" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"
+                                    <TextBlock Text="Search tables…" Foreground="{DynamicResource Muted}" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"
                                                Visibility="{Binding TableSearchText, Converter={StaticResource EmptyToVisible}}" />
                                 </Grid>
                             </Grid>
                         </Border>
-                        <Border BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8">
+                        <Border BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="8">
                             <ScrollViewer Height="260" VerticalScrollBarVisibility="Auto" Padding="10,6">
                                 <ItemsControl ItemsSource="{Binding FilteredTables}">
                                     <ItemsControl.ItemTemplate>
@@ -134,12 +134,12 @@
                 </Border>
 
                 <!-- Dry run + note -->
-                <Border Background="{StaticResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,0,0,16">
+                <Border Background="{DynamicResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,0,0,16">
                     <StackPanel Orientation="Horizontal">
                         <CheckBox Style="{StaticResource DesignCheck}" Content="Dry run (preview only — no changes made)" IsChecked="{Binding DryRun}" Margin="0,0,18,0" VerticalAlignment="Center" />
-                        <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0" Fill="{StaticResource Teal}"
+                        <Path Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0" Fill="{DynamicResource Teal}"
                               Data="M12 2 L4 5 v6 c0 5 3.5 8 8 9 c4.5 -1 8 -4 8 -9 V5 Z M10.5 13.5 L8 11 l-1.3 1.3 L10.5 16 L17 9.5 L15.7 8.2 Z" />
-                        <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{StaticResource Secondary}" TextWrapping="Wrap">
+                        <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{DynamicResource Secondary}" TextWrapping="Wrap">
                             <Run Text="One-way, source is read-only:" FontWeight="Bold" />
                             <Run Text="the SQL Server side is never modified. Column types are best-effort mapped — spot-check anything flagged in the log after a real run." />
                         </TextBlock>
@@ -159,43 +159,43 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,0,6,0">
+                            <Border Grid.Column="0" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="0,0,6,0">
                                 <StackPanel>
                                     <TextBlock Text="TABLES  (SRC / TGT)" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
-                                    <TextBlock FontSize="20" FontWeight="Bold" Foreground="{StaticResource Navy}">
+                                    <TextBlock FontSize="20" FontWeight="Bold" Foreground="{DynamicResource Navy}">
                                         <Run Text="{Binding CompareSourceTables, Mode=OneWay}" />
-                                        <Run Text=" / " Foreground="{StaticResource Muted}" FontSize="14" />
+                                        <Run Text=" / " Foreground="{DynamicResource Muted}" FontSize="14" />
                                         <Run Text="{Binding CompareTargetTables, Mode=OneWay}" />
                                     </TextBlock>
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="3,0">
+                            <Border Grid.Column="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="10" Padding="14,10" Margin="3,0">
                                 <StackPanel>
                                     <TextBlock Text="TOTAL ROWS  (SRC / TGT)" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
-                                    <TextBlock FontSize="20" FontWeight="Bold" Foreground="{StaticResource Navy}">
+                                    <TextBlock FontSize="20" FontWeight="Bold" Foreground="{DynamicResource Navy}">
                                         <Run Text="{Binding CompareSourceRows, Mode=OneWay, StringFormat=N0}" />
-                                        <Run Text=" / " Foreground="{StaticResource Muted}" FontSize="14" />
+                                        <Run Text=" / " Foreground="{DynamicResource Muted}" FontSize="14" />
                                         <Run Text="{Binding CompareTargetRows, Mode=OneWay, StringFormat=N0}" />
                                     </TextBlock>
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="2" Background="White" BorderBrush="SeaGreen" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Margin="3,0">
+                            <Border Grid.Column="2" Background="{DynamicResource CardBg}" BorderBrush="SeaGreen" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Margin="3,0">
                                 <StackPanel>
                                     <TextBlock Text="% MATCHED" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
                                     <TextBlock FontSize="20" FontWeight="Bold" Foreground="SeaGreen">
                                         <Run Text="{Binding CompareMatchedPercent, Mode=OneWay, StringFormat={}{0}%}" />
                                         <Run Text=" " />
-                                        <Run FontSize="11" Foreground="{StaticResource Muted}" Text="{Binding CompareMatchedCount, Mode=OneWay, StringFormat=({0})}" />
+                                        <Run FontSize="11" Foreground="{DynamicResource Muted}" Text="{Binding CompareMatchedCount, Mode=OneWay, StringFormat=({0})}" />
                                     </TextBlock>
                                 </StackPanel>
                             </Border>
-                            <Border Grid.Column="3" Background="White" BorderBrush="IndianRed" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Margin="6,0,0,0">
+                            <Border Grid.Column="3" Background="{DynamicResource CardBg}" BorderBrush="IndianRed" BorderThickness="1.5" CornerRadius="10" Padding="14,10" Margin="6,0,0,0">
                                 <StackPanel>
                                     <TextBlock Text="% NOT MATCHED" Style="{StaticResource FieldLabel}" Margin="0,0,0,6" />
                                     <TextBlock FontSize="20" FontWeight="Bold" Foreground="IndianRed">
                                         <Run Text="{Binding CompareMismatchedPercent, Mode=OneWay, StringFormat={}{0}%}" />
                                         <Run Text=" " />
-                                        <Run FontSize="11" Foreground="{StaticResource Muted}" Text="{Binding CompareMismatchedCount, Mode=OneWay, StringFormat=({0})}" />
+                                        <Run FontSize="11" Foreground="{DynamicResource Muted}" Text="{Binding CompareMismatchedCount, Mode=OneWay, StringFormat=({0})}" />
                                     </TextBlock>
                                 </StackPanel>
                             </Border>
@@ -211,17 +211,17 @@
                                 <CheckBox Style="{StaticResource DesignCheck}" Content="Matched" IsChecked="{Binding ShowCompareMatched}" Margin="0,0,14,0" />
                                 <CheckBox Style="{StaticResource DesignCheck}" Content="Not matched" IsChecked="{Binding ShowCompareMismatched}" />
                             </StackPanel>
-                            <Border Grid.Column="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8" Padding="11,7">
+                            <Border Grid.Column="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="8" Padding="11,7">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <Path Grid.Column="0" Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" Stroke="{StaticResource Muted}" StrokeThickness="2" Margin="0,0,8,0"
+                                    <Path Grid.Column="0" Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" Stroke="{DynamicResource Muted}" StrokeThickness="2" Margin="0,0,8,0"
                                           Data="M11 4 a7 7 0 1 0 0 14 a7 7 0 0 0 0 -14 M21 21 L16.65 16.65" />
                                     <Grid Grid.Column="1">
                                         <TextBox Style="{StaticResource BareInput}" Text="{Binding CompareSearchText, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Text="Filter by table name…" Foreground="{StaticResource Muted}" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"
+                                        <TextBlock Text="Filter by table name…" Foreground="{DynamicResource Muted}" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"
                                                    Visibility="{Binding CompareSearchText, Converter={StaticResource EmptyToVisible}}" />
                                     </Grid>
                                 </Grid>
@@ -229,13 +229,13 @@
                         </Grid>
 
                         <!-- Rows -->
-                        <Border BorderBrush="{StaticResource BorderSoft}" BorderThickness="1" CornerRadius="8">
+                        <Border BorderBrush="{DynamicResource BorderSoft}" BorderThickness="1" CornerRadius="8">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <Border Grid.Row="0" Background="{StaticResource CardSubtle}" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,0,0,1" CornerRadius="8,8,0,0">
+                                <Border Grid.Row="0" Background="{DynamicResource CardSubtle}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,0,0,1" CornerRadius="8,8,0,0">
                                     <Grid Margin="12,7">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -257,7 +257,7 @@
                                     <ItemsControl ItemsSource="{Binding CompareRows}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="{x:Type vm:CompareRowVm}">
-                                                <Border Background="Transparent" BorderBrush="{StaticResource BorderLight}" BorderThickness="0,0,0,1" Padding="12,7">
+                                                <Border Background="Transparent" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1" Padding="12,7">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
@@ -267,7 +267,7 @@
                                                             <ColumnDefinition Width="90" />
                                                             <ColumnDefinition Width="110" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="{Binding Table}" FontSize="12" FontFamily="{StaticResource FontMono}" Foreground="{StaticResource Navy}" VerticalAlignment="Center" ToolTip="{Binding MismatchReason}" />
+                                                        <TextBlock Grid.Column="0" Text="{Binding Table}" FontSize="12" FontFamily="{StaticResource FontMono}" Foreground="{DynamicResource Navy}" VerticalAlignment="Center" ToolTip="{Binding MismatchReason}" />
                                                         <TextBlock Grid.Column="1" Text="{Binding SourceColumns}" FontSize="12" VerticalAlignment="Center" />
                                                         <TextBlock Grid.Column="2" Text="{Binding TargetColumns}" FontSize="12" VerticalAlignment="Center" />
                                                         <TextBlock Grid.Column="3" Text="{Binding SourceRows}" FontSize="12" VerticalAlignment="Center" />
@@ -295,8 +295,8 @@
                         <TextBlock Text="COPY LOG" />
                     </Button>
                 </Grid>
-                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{StaticResource TermBorder}" BorderThickness="1" ClipToBounds="True">
-                    <ScrollViewer Background="{StaticResource TermBg}" Height="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
+                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{DynamicResource TermBorder}" BorderThickness="1" ClipToBounds="True">
+                    <ScrollViewer Background="{DynamicResource TermBg}" Height="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
                         <ItemsControl ItemsSource="{Binding LogLines}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -310,7 +310,7 @@
         </ScrollViewer>
 
         <!-- Footer -->
-        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
+        <Border Grid.Row="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -325,7 +325,7 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0" MinWidth="90"
                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}">
-                    <TextBlock FontSize="11" Foreground="{StaticResource Secondary}" HorizontalAlignment="Right">
+                    <TextBlock FontSize="11" Foreground="{DynamicResource Secondary}" HorizontalAlignment="Right">
                         <Run Text="{Binding ElapsedText, Mode=OneWay}" FontWeight="Bold" />
                         <Run Text=" elapsed" />
                     </TextBlock>

@@ -7,7 +7,7 @@
         <vm:MsSqlRestoreViewModel />
     </UserControl.DataContext>
 
-    <Grid Background="{StaticResource AppBg}">
+    <Grid Background="{DynamicResource AppBg}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -16,7 +16,7 @@
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,18,24,8">
             <StackPanel>
                 <TextBlock Text="SQL Server Restore" Style="{StaticResource H1}" Margin="0,0,0,4" />
-                <TextBlock Foreground="{StaticResource Muted}" FontSize="12.5" Margin="0,0,0,16" TextWrapping="Wrap"
+                <TextBlock Foreground="{DynamicResource Muted}" FontSize="12.5" Margin="0,0,0,16" TextWrapping="Wrap"
                            Text="RESTORE DATABASE always brings back the WHOLE database — no per-object scoping like the Postgres tab. Analyze reads the backup's own header (original database name, backup date) before anything is touched." />
 
                 <!-- Source / Target -->
@@ -37,7 +37,7 @@
                         <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
                                   ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" DisplayMemberPath="Name" />
                         <TextBlock Text="No SQL Server profiles yet — add one in the Profiles tab (Engine = SQL Server)."
-                                   Foreground="{StaticResource Muted}" FontSize="11.5" Margin="2,8,0,0"
+                                   Foreground="{DynamicResource Muted}" FontSize="11.5" Margin="2,8,0,0"
                                    Visibility="{Binding Profiles.Count, Converter={StaticResource ZeroToVisible}}" />
                     </StackPanel>
                 </Border>
@@ -65,13 +65,13 @@
                     <StackPanel>
                         <TextBlock Text="BACKUP HEADER" Style="{StaticResource CardTitle}" Margin="0,0,0,10" />
                         <TextBlock FontSize="12.5" Margin="0,0,0,10">
-                            <Run Text="Original database:" Foreground="{StaticResource Muted}" />
+                            <Run Text="Original database:" Foreground="{DynamicResource Muted}" />
                             <Run Text="{Binding OriginalDatabaseName, Mode=OneWay}" FontWeight="Bold" />
-                            <Run Text="  ·  backed up " Foreground="{StaticResource Muted}" />
+                            <Run Text="  ·  backed up " Foreground="{DynamicResource Muted}" />
                             <Run Text="{Binding BackupFinishDate, Mode=OneWay, StringFormat='yyyy-MM-dd HH:mm'}" FontWeight="Bold" />
-                            <Run Text="  ·  " Foreground="{StaticResource Muted}" />
+                            <Run Text="  ·  " Foreground="{DynamicResource Muted}" />
                             <Run Text="{Binding FileCount, Mode=OneWay}" FontWeight="Bold" />
-                            <Run Text=" file(s)" Foreground="{StaticResource Muted}" />
+                            <Run Text=" file(s)" Foreground="{DynamicResource Muted}" />
                         </TextBlock>
 
                         <Grid>
@@ -90,9 +90,9 @@
                             </StackPanel>
                         </Grid>
 
-                        <Border Background="{StaticResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,10,0,0"
+                        <Border Background="{DynamicResource TealBadgeBg}" CornerRadius="8" Padding="11,7" Margin="0,10,0,0"
                                 Visibility="{Binding TargetExists, Converter={StaticResource BoolToVisible}}">
-                            <TextBlock FontSize="11.5" Foreground="{StaticResource Secondary}" TextWrapping="Wrap">
+                            <TextBlock FontSize="11.5" Foreground="{DynamicResource Secondary}" TextWrapping="Wrap">
                                 <Run Text="'" /><Run Text="{Binding TargetDatabase, Mode=OneWay}" FontWeight="Bold" /><Run Text="' already exists on this server." />
                                 <Run Text=" Tick 'Overwrite existing' above to replace it, or change the name to restore alongside it." />
                             </TextBlock>
@@ -111,8 +111,8 @@
                         <TextBlock Text="COPY LOG" />
                     </Button>
                 </Grid>
-                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{StaticResource TermBorder}" BorderThickness="1" ClipToBounds="True">
-                    <ScrollViewer x:Name="LogScroll" Background="{StaticResource TermBg}" Height="240" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
+                <Border Margin="0,6,0,4" CornerRadius="10" BorderBrush="{DynamicResource TermBorder}" BorderThickness="1" ClipToBounds="True">
+                    <ScrollViewer x:Name="LogScroll" Background="{DynamicResource TermBg}" Height="240" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Padding="14,10">
                         <ItemsControl ItemsSource="{Binding LogLines}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -126,7 +126,7 @@
         </ScrollViewer>
 
         <!-- Footer -->
-        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
+        <Border Grid.Row="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource BorderSoft}" BorderThickness="0,1,0,0" Padding="24,10" MinHeight="58">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -141,7 +141,7 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0" MinWidth="110"
                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}">
-                    <TextBlock FontSize="11" Foreground="{StaticResource Secondary}" HorizontalAlignment="Right">
+                    <TextBlock FontSize="11" Foreground="{DynamicResource Secondary}" HorizontalAlignment="Right">
                         <Run Text="{Binding ElapsedText, Mode=OneWay}" FontWeight="Bold" />
                         <Run Text=" elapsed" />
                     </TextBlock>
