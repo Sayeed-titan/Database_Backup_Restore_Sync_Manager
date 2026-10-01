@@ -35,6 +35,10 @@ public sealed class TransferOptions
     public NameCase NameCase { get; init; } = NameCase.TargetDefault;
     public bool DryRun { get; init; } = true;
     public bool ContinueOnError { get; init; } = true;
+    // Second pass after the data: secondary indexes, then foreign keys — only
+    // for tables this run CREATED (existing target tables are never altered).
+    public bool CopyIndexes { get; init; } = true;
+    public bool CopyForeignKeys { get; init; } = true;
     // Apply converted code to the target (otherwise it's only written to the script file).
     public bool ApplyCode { get; init; }
     // 0 = one transaction per table (all-or-nothing). N = commit every N rows (huge tables).
@@ -70,6 +74,7 @@ public sealed class TransferRunner
         var sp = DbProviders.For(o.Source);
         var tp = DbProviders.For(o.Target);
         var results = new List<TableTransferResult>();
+        _created.Clear();
         var script = new StringBuilder();
         script.AppendLine($"-- Transfer script generated {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         script.AppendLine($"-- {sp.Name} {o.Source.Database}.{o.SourceSchema}  ->  {tp.Name} {o.Target.Database}.{o.TargetSchema}");
@@ -109,6 +114,9 @@ public sealed class TransferRunner
                     if (!o.ContinueOnError) throw;
                 }
             }
+
+            if ((o.CopyIndexes || o.CopyForeignKeys) && _created.Count > 0)
+                await CopyConstraintsAsync(sp, tp, src, tgt, o, script, ct);
 
             if (o.CodeObjects.Count > 0)
                 await TransferCodeAsync(sp, tp, src, tgt, o, script, ct);
@@ -167,6 +175,8 @@ public sealed class TransferRunner
                 PrimaryKey = s.PrimaryKey.Select(Map).ToList(),
             };
             var ddl = tp.BuildCreateTable(o.TargetSchema, design);
+            if (o.CopyForeignKeys && tp is SqliteProvider)
+                ddl = await InlineSqliteForeignKeysAsync(sp, src, o, s.Name, ddl, Map, ct);
             script.AppendLine(ddl + ";").AppendLine();
             Log($"  [{table}] " + (o.DryRun ? "would CREATE" : "CREATE") + $" {tp.Qualify(o.TargetSchema, targetName)} ({design.Columns.Count} cols" +
                 (design.PrimaryKey.Count > 0 ? $", PK {string.Join(",", design.PrimaryKey)}" : ", no PK") + ")");
@@ -180,6 +190,7 @@ public sealed class TransferRunner
                 // Re-read so value binding follows the target's REAL column types.
                 t = await tp.GetTableAsync(tgt, o.TargetSchema, targetName, ct) ?? design;
             }
+            _created.Add((s.Name, t));
         }
         else
         {
@@ -276,14 +287,14 @@ public sealed class TransferRunner
 
         Progress?.Invoke(this, new TransferProgress(table, index, o.Tables.Count, total, estimate));
         Log($"    copied {total:N0} row(s).");
-        if (tp is PostgresProvider) await ResyncPgSequencesAsync(tgt, o.TargetSchema, t.Name, ct);
+        if (tp is PostgresProvider) await ResyncPgSequencesAsync(tgt, o.TargetSchema, t.Name, Log, ct);
         return total;
     }
 
     // After loading explicit ids into a PG table whose columns default to a
     // sequence, move the sequence past MAX(id) — otherwise the next app INSERT
     // collides with an imported row.
-    private async Task ResyncPgSequencesAsync(DbConnection c, string schema, string table, CancellationToken ct)
+    internal static async Task ResyncPgSequencesAsync(DbConnection c, string schema, string table, Action<string> Log, CancellationToken ct)
     {
         try
         {
@@ -308,6 +319,122 @@ WHERE n.nspname=@s AND cl.relname=@t AND a.attnum>0 AND NOT a.attisdropped
             }
         }
         catch (Exception ex) { Log($"    (sequence resync skipped: {ex.Message})"); }
+    }
+
+    private readonly List<(string SourceTable, TableInfo Target)> _created = new();
+
+    private async Task CopyConstraintsAsync(IDbProvider sp, IDbProvider tp, DbConnection src, DbConnection tgt, TransferOptions o, StringBuilder script, CancellationToken ct)
+    {
+        string Map(string n) => NameCasing.Apply(n, o.NameCase, tp.NormalizeName);
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int indexes = 0, fks = 0, failed = 0, skipped = 0;
+        script.AppendLine("-- ===== indexes & foreign keys =====");
+
+        async Task<bool> Apply(string what, string ddl)
+        {
+            script.AppendLine(ddl + ";");
+            if (o.DryRun) { Log($"    would {what}"); return true; }
+            try
+            {
+                await using var cmd = tgt.CreateCommand();
+                cmd.CommandText = ddl;
+                cmd.CommandTimeout = 0;
+                await cmd.ExecuteNonQueryAsync(ct);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                Log($"    FAILED to {what}: {FirstLine(ex.Message)}");
+                script.AppendLine($"-- ^^^ FAILED on target: {FirstLine(ex.Message)}");
+                return false;
+            }
+        }
+
+        if (o.CopyIndexes)
+            foreach (var (srcName, t) in _created)
+            {
+                ct.ThrowIfCancellationRequested();
+                List<IndexInfo> list;
+                try { list = await sp.GetIndexesAsync(src, o.SourceSchema, srcName, ct); }
+                catch (Exception ex) { Log($"  [{srcName}] couldn't read indexes: {FirstLine(ex.Message)}"); continue; }
+                foreach (var ix in list)
+                {
+                    var cols = ix.Columns.Select(Map).ToList();
+                    if (cols.Any(c => !t.Columns.Any(tc => string.Equals(tc.Name, c, StringComparison.OrdinalIgnoreCase)))) { skipped++; continue; }
+                    // A unique index on exactly the PK columns already exists as the PK.
+                    if (cols.Count == t.PrimaryKey.Count && cols.All(c => t.PrimaryKey.Contains(c, StringComparer.OrdinalIgnoreCase))) { skipped++; continue; }
+                    var name = UniqueName(Map(ix.Name), t.Name, tp.MaxIdentifierLength, used);
+                    if (await Apply($"CREATE {(ix.Unique ? "UNIQUE " : "")}INDEX {name} ON {t.Name} ({string.Join(", ", cols)})",
+                            tp.BuildCreateIndex(o.TargetSchema, t, new IndexInfo(name, cols, ix.Unique)))) indexes++;
+                }
+            }
+
+        if (o.CopyForeignKeys && tp is not SqliteProvider)
+            foreach (var (srcName, t) in _created)
+            {
+                ct.ThrowIfCancellationRequested();
+                List<ForeignKeyInfo> list;
+                try { list = await sp.GetForeignKeysAsync(src, o.SourceSchema, srcName, ct); }
+                catch (Exception ex) { Log($"  [{srcName}] couldn't read foreign keys: {FirstLine(ex.Message)}"); continue; }
+                foreach (var fk in list)
+                {
+                    var sameSchema = string.Equals(fk.RefSchema, o.SourceSchema, StringComparison.OrdinalIgnoreCase);
+                    if (!sameSchema) Log($"  [{srcName}] FK {fk.Name} points to another schema ({fk.RefSchema}) — created against {Map(fk.RefSchema)}.{Map(fk.RefTable)}");
+                    var name = UniqueName(Map(fk.Name), t.Name, tp.MaxIdentifierLength, used);
+                    var mapped = fk with
+                    {
+                        Name = name,
+                        Columns = fk.Columns.Select(Map).ToList(),
+                        RefSchema = sameSchema ? o.TargetSchema : Map(fk.RefSchema),
+                        RefTable = Map(fk.RefTable),
+                        RefColumns = fk.RefColumns.Select(Map).ToList(),
+                    };
+                    var ddl = tp.BuildAddForeignKey(o.TargetSchema, t.Name, mapped);
+                    if (ddl != null && await Apply($"ADD FOREIGN KEY {name} {t.Name} -> {mapped.RefTable}", ddl)) fks++;
+                }
+            }
+
+        Log($"  [constraints] {(o.DryRun ? "planned" : "created")} {indexes} index(es), {fks} foreign key(s)" +
+            (failed > 0 ? $", {failed} failed (see above)" : "") + (skipped > 0 ? $", {skipped} skipped (PK duplicate / missing column)" : "") +
+            (tp is SqliteProvider && o.CopyForeignKeys ? " — SQLite foreign keys were written into CREATE TABLE" : ""));
+        script.AppendLine();
+    }
+
+    // SQLite can only declare foreign keys inside CREATE TABLE.
+    private async Task<string> InlineSqliteForeignKeysAsync(IDbProvider sp, DbConnection src, TransferOptions o, string srcTable, string ddl, Func<string, string> map, CancellationToken ct)
+    {
+        List<ForeignKeyInfo> fks;
+        try { fks = await sp.GetForeignKeysAsync(src, o.SourceSchema, srcTable, ct); }
+        catch { return ddl; }
+        if (fks.Count == 0) return ddl;
+        string Q(string x) => "\"" + x.Replace("\"", "\"\"") + "\"";
+        var clauses = fks.Select(fk =>
+            $",\n  FOREIGN KEY ({string.Join(", ", fk.Columns.Select(c => Q(map(c))))}) REFERENCES {Q(map(fk.RefTable))} ({string.Join(", ", fk.RefColumns.Select(c => Q(map(c))))})" +
+            (fk.OnDelete != "NO ACTION" ? $" ON DELETE {fk.OnDelete}" : "") + (fk.OnUpdate != "NO ACTION" ? $" ON UPDATE {fk.OnUpdate}" : ""));
+        var at = ddl.LastIndexOf("\n)", StringComparison.Ordinal);
+        return at < 0 ? ddl : ddl[..at] + string.Concat(clauses) + ddl[at..];
+    }
+
+    // Index/constraint names are schema-wide on some engines (PG, Oracle) but
+    // table-local on others (SQL Server, MySQL), so a source with two IX_Name
+    // indexes on different tables would collide — prefix with the table then,
+    // and respect the target's identifier length limit.
+    internal static string UniqueName(string name, string table, int maxLen, HashSet<string> used)
+    {
+        string Fit(string n)
+        {
+            if (n.Length <= maxLen) return n;
+            uint h = 2166136261;                       // FNV-1a: stable across runs (string.GetHashCode is not)
+            foreach (var ch in n) h = (h ^ ch) * 16777619;
+            var hash = h.ToString("x8")[..6];
+            return n[..(maxLen - 7)] + "_" + hash;
+        }
+        var candidate = Fit(name);
+        if (used.Contains(candidate)) candidate = Fit($"{table}_{name}");
+        for (int i = 2; used.Contains(candidate); i++) candidate = Fit($"{table}_{name}_{i}");
+        used.Add(candidate);
+        return candidate;
     }
 
     private async Task TransferCodeAsync(IDbProvider sp, IDbProvider tp, DbConnection src, DbConnection tgt, TransferOptions o, StringBuilder script, CancellationToken ct)

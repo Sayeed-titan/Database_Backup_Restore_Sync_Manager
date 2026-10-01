@@ -24,6 +24,10 @@ internal sealed class OracleToPostgres
     private readonly HashSet<string> _procs;
     private readonly bool _lower;
 
+    // PL/SQL collection types (TABLE OF / VARRAY) -> "elem[]", and variables of those types.
+    private readonly Dictionary<string, string> _collTypes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _collVars = new(StringComparer.OrdinalIgnoreCase);
+
     public OracleToPostgres(ConvertContext ctx)
     {
         _ctx = ctx;
@@ -216,6 +220,12 @@ internal sealed class OracleToPostgres
     // converted recursively before being re-assembled.
     private void Expr(List<Tok> t)
     {
+        // Query-shape rewrites first; they re-tokenize, so the conversions below still apply inside them.
+        if (t.Any(x => x.IsSym("(+)") || x.IsWord("CONNECT")))
+        {
+            var r = OracleStructural.ConnectBy(OracleStructural.OuterJoins(t, Warn), Warn);
+            if (!ReferenceEquals(r, t)) { t.Clear(); t.AddRange(r); }
+        }
         MapTypes(t);
         for (int i = 0; i < t.Count; i++)
         {
@@ -700,6 +710,7 @@ internal sealed class OracleToPostgres
         var typeList = SpaceOut(typeToks);
         MapTypes(typeList);
         var type = R(typeList);
+        if (typeToks.Count == 1 && _collTypes.TryGetValue(typeToks[0].Ident, out var arr)) { type = arr; _collVars.Add(toks[0].Ident); }
         var s = $"{mode}{name} {type}";
         if (def != null) { var d = SpaceOut(def); Expr(d); s += " DEFAULT " + R(d); }
         return s;
@@ -784,6 +795,36 @@ internal sealed class OracleToPostgres
             if (sig.Any(z => z.IsWord("AUTONOMOUS_TRANSACTION"))) Warn("PRAGMA AUTONOMOUS_TRANSACTION has no equivalent (dblink/pg_background can emulate it).");
             return "-- " + text + ";";
         }
+        if (sig[0].IsWord("TYPE") && sig.Count > 1 && OracleStructural.CollectionElementType(item) is { } elem)
+        {
+            var et = SqlTokenizer.Tokenize(elem, ScriptDialect.Oracle);
+            MapTypes(et);
+            _collTypes[sig[1].Ident] = R(et) + "[]";
+            return $"-- collection type {sig[1].Text} -> {R(et)}[] (PostgreSQL array)";
+        }
+        if (sig.Count >= 2 && sig[1].IsIdent && _collTypes.TryGetValue(sig[1].Ident, out var arrType))
+        {
+            // v t_list [:= t_list(...)]
+            _collVars.Add(sig[0].Ident);
+            var assign = sig.FindIndex(z => z.IsSym(":=") || z.IsWord("DEFAULT"));
+            var init = "";
+            if (assign > 0)
+            {
+                // Work on the original tokens (with spacing), not the trivia-free list.
+                var at = item.IndexOf(sig[assign]);
+                var rhs = item.Skip(at + 1).Select(z => new Tok(z.Kind, z.Text)).ToList();
+                var rs = rhs.Where(z => !z.IsTrivia).ToList();
+                if (rs.Count >= 3 && rs[0].IsIdent && _collTypes.ContainsKey(rs[0].Ident) && rs[1].IsSym("("))
+                {
+                    var open = rhs.IndexOf(rs[1]);
+                    var close = MatchParen(rhs, open);
+                    var inner = R(Slice(rhs, open + 1, close));
+                    init = inner.Length == 0 ? " := '{}'" : $" := ARRAY[{inner}]";
+                }
+                else { Expr(rhs); init = " := " + R(rhs); }
+            }
+            return $"{sig[0].Text} {arrType}{init};";
+        }
         if (sig[0].IsWordAny("TYPE", "SUBTYPE"))
         {
             Warn("PL/SQL TYPE/SUBTYPE declarations (records, collections, REF CURSOR) — use arrays, composite types (CREATE TYPE) or refcursor.");
@@ -811,6 +852,7 @@ internal sealed class OracleToPostgres
     {
         loopRecords = new List<string>();
         var t = body.Select(z => new Tok(z.Kind, z.Text)).ToList();
+        t = OracleStructural.PlSqlCollections(t, _collVars, _collTypes, Warn);
         Expr(t);
 
         bool atStart = true;
@@ -923,6 +965,19 @@ internal sealed class OracleToPostgres
         sb.AppendLine($"-- Package spec {pkg}: PostgreSQL has no packages.");
         if (_ctx.PackageAsSchema) sb.AppendLine($"CREATE SCHEMA IF NOT EXISTS {pkgSchema};");
         var sig = items.Where(z => !z.IsTrivia).ToList();
+        for (int i = 0; i < sig.Count; i++)
+        {
+            if (!sig[i].IsWord("TYPE") || (i > 0 && !sig[i - 1].IsSym(";") && !sig[i - 1].IsWordAny("IS", "AS"))) continue;
+            var end = sig.FindIndex(i, z => z.IsSym(";"));
+            if (end < 0) break;
+            if (OracleStructural.CollectionElementType(sig.Skip(i).Take(end - i).ToList()) is { } elem)
+            {
+                var et = SqlTokenizer.Tokenize(elem, ScriptDialect.Oracle);
+                MapTypes(et);
+                _collTypes[sig[i + 1].Ident] = R(et) + "[]";
+                sb.AppendLine($"-- collection type {pkg}.{sig[i + 1].Text} -> {R(et)}[] (used as a PostgreSQL array in the body)");
+            }
+        }
         bool hasState = false;
         for (int i = 0; i < sig.Count; i++)
         {
