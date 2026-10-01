@@ -21,8 +21,8 @@ public sealed class PgDumpRunner
 
         var args = new List<string>
         {
-            $"--host={job.Host}",
-            $"--port={job.Port}",
+            $"--host={PgToolEndpoint.Resolve(job.Profile, job.Host, job.Port).Host}",
+            $"--port={PgToolEndpoint.Resolve(job.Profile, job.Host, job.Port).Port}",
             $"--username={job.Username}",
             $"--dbname={job.Database}",
             $"--file={job.FullOutputPath}",
@@ -38,7 +38,7 @@ public sealed class PgDumpRunner
         foreach (var s in job.IncludeSchemas) args.Add($"--schema=\"{s}\"");
         foreach (var t in job.IncludeTables) args.Add($"--table={QuoteQualifiedName(t)}");
 
-        var env = new Dictionary<string, string> { ["PGPASSWORD"] = plaintextPassword };
+        var env = PgToolEndpoint.Env(job.Profile, plaintextPassword);
         return await Process.RunAsync(pgDumpExe, args, env, ct: ct);
     }
 

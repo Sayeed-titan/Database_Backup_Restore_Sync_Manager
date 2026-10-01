@@ -39,6 +39,18 @@ public sealed class TableInfo
     public List<string> PrimaryKey { get; init; } = new();
 }
 
+// Plain column index (expression / partial / filtered indexes are not carried across engines).
+public sealed record IndexInfo(string Name, IReadOnlyList<string> Columns, bool Unique);
+
+public sealed record ForeignKeyInfo(
+    string Name,
+    IReadOnlyList<string> Columns,
+    string RefSchema,
+    string RefTable,
+    IReadOnlyList<string> RefColumns,
+    string OnDelete = "NO ACTION",   // NO ACTION | RESTRICT | CASCADE | SET NULL | SET DEFAULT
+    string OnUpdate = "NO ACTION");
+
 public enum DbObjectType { Table, View, Function, Procedure, Package, Sequence, Trigger, Type }
 
 public sealed record DbObjectInfo(string Schema, string Name, DbObjectType Type)
@@ -90,6 +102,7 @@ public static class ValueCoercer
                 CanonicalType.DateTimeOffset => v switch
                 {
                     DateTimeOffset dto => dto,
+                    string s when DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed) => parsed,
                     _ => new DateTimeOffset(DateTime.SpecifyKind(ToDateTime(v), DateTimeKind.Utc)),
                 },
                 CanonicalType.Time => v switch

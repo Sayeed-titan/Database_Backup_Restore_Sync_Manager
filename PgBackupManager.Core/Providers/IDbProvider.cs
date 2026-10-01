@@ -31,6 +31,8 @@ public interface IDbProvider
     string NormalizeName(string name);
 
     Task<List<string>> ListSchemasAsync(DbConnection c, CancellationToken ct = default);
+    // Other databases on the same server this login can open (empty when the engine has no such notion).
+    Task<List<string>> ListDatabasesAsync(DbConnection c, CancellationToken ct = default);
     Task<List<DbObjectInfo>> ListObjectsAsync(DbConnection c, string schema, CancellationToken ct = default);
     Task<TableInfo?> GetTableAsync(DbConnection c, string schema, string table, CancellationToken ct = default);
     Task<string?> GetObjectSourceAsync(DbConnection c, DbObjectInfo obj, CancellationToken ct = default);
@@ -52,6 +54,18 @@ public interface IDbProvider
 
     // Largest batch that stays within this engine's bind-parameter limits.
     int MaxBatchRows(int columnCount);
+
+    // Secondary indexes + foreign keys (second pass of a transfer, after the data).
+    Task<List<IndexInfo>> GetIndexesAsync(DbConnection c, string schema, string table, CancellationToken ct = default);
+    Task<List<ForeignKeyInfo>> GetForeignKeysAsync(DbConnection c, string schema, string table, CancellationToken ct = default);
+    string BuildCreateIndex(string schema, TableInfo table, IndexInfo index);
+    // null = this engine can't add a foreign key to an existing table (SQLite).
+    string? BuildAddForeignKey(string schema, string table, ForeignKeyInfo fk);
+    int MaxIdentifierLength { get; }
+
+    // Schema-compare sync scripts. null = not supported by this engine.
+    string BuildAddColumn(string schema, string table, ColumnInfo col);
+    string? BuildAlterColumnType(string schema, string table, ColumnInfo col);
 
     // Reader hooks for streaming a table out (LOB fetch sizes, oversized numbers...).
     void PrepareReadCommand(DbCommand cmd);
@@ -80,6 +94,7 @@ public abstract class DbProviderBase : IDbProvider
     public virtual string NormalizeName(string name) => name;
 
     public abstract Task<List<string>> ListSchemasAsync(DbConnection c, CancellationToken ct = default);
+    public virtual Task<List<string>> ListDatabasesAsync(DbConnection c, CancellationToken ct = default) => Task.FromResult(new List<string>());
     public abstract Task<List<DbObjectInfo>> ListObjectsAsync(DbConnection c, string schema, CancellationToken ct = default);
     public abstract Task<TableInfo?> GetTableAsync(DbConnection c, string schema, string table, CancellationToken ct = default);
     public abstract Task<string?> GetObjectSourceAsync(DbConnection c, DbObjectInfo obj, CancellationToken ct = default);
@@ -148,6 +163,45 @@ public abstract class DbProviderBase : IDbProvider
         cmd.CommandText = sb.ToString();
         await cmd.ExecuteNonQueryAsync(ct);
     }
+
+    public virtual int MaxIdentifierLength => 128;
+
+    public virtual string BuildAddColumn(string schema, string table, ColumnInfo col) =>
+        $"ALTER TABLE {Qualify(schema, table)} ADD {Quote(col.Name)} {NativeType(col, false)}{(col.Nullable ? "" : " NOT NULL")}";
+
+    public virtual string? BuildAlterColumnType(string schema, string table, ColumnInfo col) =>
+        $"ALTER TABLE {Qualify(schema, table)} ALTER COLUMN {Quote(col.Name)} TYPE {NativeType(col, false)}";
+    public virtual Task<List<IndexInfo>> GetIndexesAsync(DbConnection c, string schema, string table, CancellationToken ct = default) => Task.FromResult(new List<IndexInfo>());
+    public virtual Task<List<ForeignKeyInfo>> GetForeignKeysAsync(DbConnection c, string schema, string table, CancellationToken ct = default) => Task.FromResult(new List<ForeignKeyInfo>());
+
+    public virtual string BuildCreateIndex(string schema, TableInfo table, IndexInfo ix) =>
+        $"CREATE {(ix.Unique ? "UNIQUE " : "")}INDEX {Quote(ix.Name)} ON {Qualify(schema, table.Name)} ({string.Join(", ", ix.Columns.Select(Quote))})";
+
+    public virtual string? BuildAddForeignKey(string schema, string table, ForeignKeyInfo fk) =>
+        $"ALTER TABLE {Qualify(schema, table)} ADD CONSTRAINT {Quote(fk.Name)} FOREIGN KEY ({string.Join(", ", fk.Columns.Select(Quote))}) " +
+        $"REFERENCES {Qualify(fk.RefSchema, fk.RefTable)} ({string.Join(", ", fk.RefColumns.Select(Quote))})" +
+        RefAction("DELETE", fk.OnDelete) + RefAction("UPDATE", fk.OnUpdate);
+
+    protected virtual string RefAction(string evt, string action) =>
+        string.IsNullOrEmpty(action) || action == "NO ACTION" ? "" : $" ON {evt} {action}";
+
+    // Engines spell referential actions differently ("SET_NULL", "n", "SET NULL"...).
+    public static string NormalizeAction(string? a) => (a ?? "").Trim().ToUpperInvariant().Replace('_', ' ') switch
+    {
+        "C" or "CASCADE" => "CASCADE",
+        "N" or "SET NULL" => "SET NULL",
+        "D" or "SET DEFAULT" => "SET DEFAULT",
+        "R" or "RESTRICT" => "RESTRICT",
+        _ => "NO ACTION",
+    };
+
+    protected static List<string> Split1(object? v) =>
+        v switch
+        {
+            null or DBNull => new List<string>(),
+            string[] arr => arr.ToList(),
+            _ => S(v).Split('\u0001', StringSplitOptions.RemoveEmptyEntries).ToList(),
+        };
 
     protected virtual string UpsertSuffix(TableInfo t) => throw new NotSupportedException($"{Name} does not support upsert.");
 

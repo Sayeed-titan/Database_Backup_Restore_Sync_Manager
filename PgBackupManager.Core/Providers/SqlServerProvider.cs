@@ -19,6 +19,9 @@ public sealed class SqlServerProvider : DbProviderBase
     public override DbConnection CreateConnection(string cs) => new SqlConnection(cs);
     public override string Quote(string id) => "[" + id.Replace("]", "]]") + "]";
 
+    public override async Task<List<string>> ListDatabasesAsync(DbConnection c, CancellationToken ct = default) =>
+        (await RowsAsync(c, "SELECT name FROM sys.databases WHERE database_id > 4 AND state = 0 AND HAS_DBACCESS(name) = 1 ORDER BY name", ct)).Select(r => S(r[0])).ToList();
+
     public override async Task<List<string>> ListSchemasAsync(DbConnection c, CancellationToken ct = default) =>
         (await RowsAsync(c, "SELECT name FROM sys.schemas WHERE schema_id < 16384 AND name NOT IN ('sys','INFORMATION_SCHEMA','guest') ORDER BY name", ct))
         .Select(r => S(r[0])).ToList();
@@ -148,6 +151,50 @@ ORDER BY ic.key_ordinal";
         ExecAsync(c, $"IF OBJECT_ID(N'{Qualify(schema, table).Replace("'", "''")}', N'U') IS NOT NULL DROP TABLE {Qualify(schema, table)}", ct);
 
     public override int MaxBatchRows(int columnCount) => 5000;
+
+    public override async Task<List<IndexInfo>> GetIndexesAsync(DbConnection c, string schema, string table, CancellationToken ct = default)
+    {
+        // Plain rowstore indexes; filtered, columnstore, XML and spatial ones are skipped.
+        const string sql = @"
+SELECT i.name, i.is_unique, STRING_AGG(col.name, CHAR(1)) WITHIN GROUP (ORDER BY ic.key_ordinal)
+FROM sys.indexes i
+JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = 0
+JOIN sys.columns col ON col.object_id = ic.object_id AND col.column_id = ic.column_id
+JOIN sys.tables t ON t.object_id = i.object_id
+JOIN sys.schemas s ON s.schema_id = t.schema_id
+WHERE s.name = @s AND t.name = @t AND i.is_primary_key = 0 AND i.type IN (1, 2) AND i.has_filter = 0 AND i.is_hypothetical = 0
+GROUP BY i.name, i.is_unique
+ORDER BY i.name";
+        return (await RowsAsync(c, sql, ct, ("@s", schema), ("@t", table)))
+            .Select(r => new IndexInfo(S(r[0]), Split1(r[2]), Convert.ToBoolean(r[1]))).ToList();
+    }
+
+    public override async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(DbConnection c, string schema, string table, CancellationToken ct = default)
+    {
+        const string sql = @"
+SELECT fk.name,
+       STRING_AGG(pc.name, CHAR(1)) WITHIN GROUP (ORDER BY fkc.constraint_column_id),
+       rs.name, rt.name,
+       STRING_AGG(rc.name, CHAR(1)) WITHIN GROUP (ORDER BY fkc.constraint_column_id),
+       fk.delete_referential_action_desc, fk.update_referential_action_desc
+FROM sys.foreign_keys fk
+JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+JOIN sys.columns pc ON pc.object_id = fkc.parent_object_id AND pc.column_id = fkc.parent_column_id
+JOIN sys.columns rc ON rc.object_id = fkc.referenced_object_id AND rc.column_id = fkc.referenced_column_id
+JOIN sys.tables t ON t.object_id = fk.parent_object_id JOIN sys.schemas s ON s.schema_id = t.schema_id
+JOIN sys.tables rt ON rt.object_id = fk.referenced_object_id JOIN sys.schemas rs ON rs.schema_id = rt.schema_id
+WHERE s.name = @s AND t.name = @t
+GROUP BY fk.name, rs.name, rt.name, fk.delete_referential_action_desc, fk.update_referential_action_desc
+ORDER BY fk.name";
+        return (await RowsAsync(c, sql, ct, ("@s", schema), ("@t", table)))
+            .Select(r => new ForeignKeyInfo(S(r[0]), Split1(r[1]), S(r[2]), S(r[3]), Split1(r[4]), NormalizeAction(S(r[5])), NormalizeAction(S(r[6])))).ToList();
+    }
+
+    public override string? BuildAlterColumnType(string schema, string table, ColumnInfo col) =>
+        $"ALTER TABLE {Qualify(schema, table)} ALTER COLUMN {Quote(col.Name)} {NativeType(col, false)}{(col.Nullable ? " NULL" : " NOT NULL")}";
+
+    // SQL Server has no RESTRICT (NO ACTION behaves the same way).
+    protected override string RefAction(string evt, string action) => action == "RESTRICT" ? "" : base.RefAction(evt, action);
 
     private static Type ClrType(CanonicalType t) => t switch
     {

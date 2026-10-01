@@ -46,8 +46,8 @@ public static class HeadlessJobRunner
 
     private static async Task<(bool, string)> RunTransferAsync(TransferPreset t, Action<string> L, CancellationToken ct)
     {
-        var src = Profile(t.SourceProfileId);
-        var tgt = Profile(t.TargetProfileId);
+        var src = Profile(t.SourceProfileId).WithDatabase(t.SourceDatabase);
+        var tgt = Profile(t.TargetProfileId).WithDatabase(t.TargetDatabase);
         var tables = t.Tables;
         if (tables.Count == 0)
         {
@@ -63,6 +63,7 @@ public static class HeadlessJobRunner
             Source = src, Target = tgt, SourceSchema = t.SourceSchema, TargetSchema = t.TargetSchema,
             Tables = tables, CodeObjects = t.CodeObjects, Mode = t.Mode, NameCase = t.NameCase,
             DryRun = false, ApplyCode = t.ApplyCode, RowFilter = t.RowFilter, CommitEveryRows = t.CommitEveryRows,
+            CopyIndexes = t.CopyIndexes, CopyForeignKeys = t.CopyForeignKeys,
         }, ct);
         return (r.Ok, r.Summary);
     }
@@ -86,7 +87,7 @@ public static class HeadlessJobRunner
                     if (tools.PgDump is null) return (false, "pg_dump not found — set it up in Settings.");
                     var job = new BackupJob
                     {
-                        Host = p.Host, Port = p.Port, Database = p.Database, Username = p.Username,
+                        Host = p.Host, Port = p.Port, Database = p.Database, Username = p.Username, Profile = p,
                         Format = b.Format, Scope = b.Scope, Content = b.Content,
                         IncludeSchemas = b.Scope == BackupScope.SpecificSchemas ? b.Schemas : new(),
                         IncludeTables = b.Scope == BackupScope.SpecificTables ? b.Tables : new(),
