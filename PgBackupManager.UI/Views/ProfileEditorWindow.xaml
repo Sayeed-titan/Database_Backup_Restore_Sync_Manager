@@ -29,13 +29,15 @@
                 </Button>
             </Grid>
 
-            <!-- form -->
+            <!-- form (scrolls when the SSH section makes it taller than the screen) -->
+            <ScrollViewer x:Name="FormScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -103,8 +105,73 @@
                              ToolTip="Appended to the generated connection string, e.g. SSL Mode=Require;  or  Encrypt=True" />
                 </StackPanel>
 
-                <TextBlock Grid.Row="6" Grid.ColumnSpan="2" x:Name="TestResultText" FontSize="11.5" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource Secondary}" />
+                <StackPanel Grid.Row="6" Grid.ColumnSpan="2" Margin="0,12,0,0" Visibility="{Binding IsServer, Converter={StaticResource BoolToVisible}}">
+                    <CheckBox Style="{StaticResource DesignCheck}" IsChecked="{Binding ShowSecurity}">
+                        <TextBlock>
+                            <Run Text="SSL / SSH tunnel options" />
+                            <Run Text="{Binding SecuritySummary, Mode=OneWay}" Foreground="{DynamicResource Teal}" FontSize="11" />
+                        </TextBlock>
+                    </CheckBox>
+                    <Grid Margin="0,10,0,0" Visibility="{Binding ShowSecurity, Converter={StaticResource BoolToVisible}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Margin="0,0,6,12">
+                            <TextBlock Text="SSL / TLS MODE" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                                      ItemsSource="{Binding SslModes}" SelectedItem="{Binding SslMode}"
+                                      ToolTip="Require = encrypted, certificate not checked. VerifyCA / VerifyFull also validate the server certificate. Oracle: Require switches to TCPS." />
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" Style="{StaticResource DesignCheck}" Content="Connect through an SSH tunnel" IsChecked="{Binding SshEnabled}"
+                                  VerticalAlignment="Bottom" Margin="6,0,0,20" />
+                        <StackPanel Grid.Row="1" Margin="0,0,6,12" Visibility="{Binding SshEnabled, Converter={StaticResource BoolToVisible}}">
+                            <TextBlock Text="SSH HOST" Style="{StaticResource FieldLabel}" />
+                            <TextBox Style="{StaticResource InputBox}" Text="{Binding SshHost, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="6,0,0,12" Visibility="{Binding SshEnabled, Converter={StaticResource BoolToVisible}}">
+                            <TextBlock Text="SSH PORT" Style="{StaticResource FieldLabel}" />
+                            <TextBox Style="{StaticResource InputBox}" Text="{Binding SshPort, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Margin="0,0,6,12" Visibility="{Binding SshEnabled, Converter={StaticResource BoolToVisible}}">
+                            <TextBlock Text="SSH USER" Style="{StaticResource FieldLabel}" />
+                            <TextBox Style="{StaticResource InputBox}" Text="{Binding SshUser, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="1" Margin="6,0,0,12" Visibility="{Binding SshEnabled, Converter={StaticResource BoolToVisible}}">
+                            <TextBlock Text="SSH PASSWORD (or key)" Style="{StaticResource FieldLabel}" />
+                            <PasswordBox x:Name="SshPasswordInput" Style="{StaticResource InputPasswordBox}" />
+                        </StackPanel>
+                        <Grid Grid.Row="3" Margin="0,0,6,12" Visibility="{Binding SshEnabled, Converter={StaticResource BoolToVisible}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="PRIVATE KEY FILE (optional)" Style="{StaticResource FieldLabel}" />
+                                <TextBox Style="{StaticResource InputBox}" Text="{Binding SshKeyFile, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource GhostButton}" Command="{Binding BrowseSshKeyCommand}" Content="…" VerticalAlignment="Bottom" Margin="6,0,0,0" Padding="12,8" />
+                        </Grid>
+                        <StackPanel Grid.Row="3" Grid.Column="1" Margin="6,0,0,12" Visibility="{Binding SshEnabled, Converter={StaticResource BoolToVisible}}">
+                            <TextBlock Text="KEY PASSPHRASE" Style="{StaticResource FieldLabel}" />
+                            <PasswordBox x:Name="SshPassphraseInput" Style="{StaticResource InputPasswordBox}" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="4" Grid.ColumnSpan="2" TextWrapping="Wrap" FontSize="10.5" Foreground="{DynamicResource Muted}"
+                                   Visibility="{Binding SshEnabled, Converter={StaticResource BoolToVisible}}"
+                                   Text="The database host/port above are as seen from the SSH server. Its host key is pinned on first connect and a changed key is refused. SSH secrets are DPAPI-encrypted." />
+                    </Grid>
+                </StackPanel>
+
+                <TextBlock Grid.Row="7" Grid.ColumnSpan="2" x:Name="TestResultText" FontSize="11.5" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource Secondary}" />
             </Grid>
+            </ScrollViewer>
 
             <!-- actions -->
             <Grid Margin="0,18,0,0">

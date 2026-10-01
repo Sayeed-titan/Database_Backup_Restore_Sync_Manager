@@ -50,6 +50,18 @@ public partial class TransferViewModel : ObservableObject
     public ObservableCollection<string> SourceSchemas { get; } = new();
     public ObservableCollection<string> TargetSchemas { get; } = new();
     [ObservableProperty] private string? _sourceSchema;
+
+    // Database on the server (SQL Server / PostgreSQL): defaults to the profile's own, any other can be picked.
+    public ObservableCollection<string> SourceDatabases { get; } = new();
+    public ObservableCollection<string> TargetDatabases { get; } = new();
+    [ObservableProperty] private string? _sourceDatabase;
+    [ObservableProperty] private string? _targetDatabase;
+    public bool HasSourceDatabases => SourceDatabases.Count > 1;
+    public bool HasTargetDatabases => TargetDatabases.Count > 1;
+    private bool _loadingDbs;
+    // The profile as actually connected to: selected connection + chosen database.
+    private ConnectionProfile? SrcEff => SourceProfile?.WithDatabase(SourceDatabase);
+    private ConnectionProfile? TgtEff => TargetProfile?.WithDatabase(TargetDatabase);
     [ObservableProperty] private string _targetSchema = "";
 
     public ObservableCollection<TransferItem> Tables { get; } = new();
@@ -81,6 +93,8 @@ public partial class TransferViewModel : ObservableObject
     [ObservableProperty] private bool _dryRun = true;
     [ObservableProperty] private bool _applyCode;
     [ObservableProperty] private bool _continueOnError = true;
+    [ObservableProperty] private bool _copyIndexes = true;
+    [ObservableProperty] private bool _copyForeignKeys = true;
     [ObservableProperty] private string _rowFilter = "";
     [ObservableProperty] private string _commitEvery = "0";
 
@@ -149,12 +163,58 @@ public partial class TransferViewModel : ObservableObject
     {
         Tables.Clear(); CodeObjects.Clear(); SourceSchemas.Clear(); ApplyFilter();
         OnPropertyChanged(nameof(EngineHint));
+        _ = LoadDatabasesAsync(value, SourceDatabases, v => SourceDatabase = v, () => OnPropertyChanged(nameof(HasSourceDatabases)), _pendingDb.Source);
     }
 
     partial void OnTargetProfileChanged(ConnectionProfile? value)
     {
         OnPropertyChanged(nameof(EngineHint));
+        _ = LoadDatabasesAsync(value, TargetDatabases, v => TargetDatabase = v, () => OnPropertyChanged(nameof(HasTargetDatabases)), _pendingDb.Target)
+            .ContinueWith(_ => Ui(() => _ = LoadTargetSchemasAsync()));
+    }
+
+    // Database picked for a preset / request, applied once the profile's list has loaded.
+    private (string? Source, string? Target) _pendingDb;
+
+    partial void OnSourceDatabaseChanged(string? value)
+    {
+        if (_loadingDbs) return;
+        Tables.Clear(); CodeObjects.Clear(); SourceSchemas.Clear(); SourceSchema = null; ApplyFilter();
+        _ = LoadObjectsAsync();
+    }
+
+    partial void OnTargetDatabaseChanged(string? value)
+    {
+        if (_loadingDbs) return;
         _ = LoadTargetSchemasAsync();
+    }
+
+    private async Task LoadDatabasesAsync(ConnectionProfile? p, ObservableCollection<string> into, Action<string?> select, Action changed, string? prefer)
+    {
+        _loadingDbs = true;
+        into.Clear();
+        string? chosen = null;
+        try
+        {
+            if (p != null)
+            {
+                chosen = prefer ?? p.Database;
+                if (p.Engine is DbEngine.SqlServer or DbEngine.PostgreSql)
+                {
+                    try
+                    {
+                        var prov = DbProviders.For(p);
+                        await using var c = await prov.OpenAsync(p);
+                        foreach (var d in await prov.ListDatabasesAsync(c)) into.Add(d);
+                    }
+                    catch { /* offline / no permission — fall back to the profile's own database */ }
+                    if (!string.IsNullOrEmpty(p.Database) && !into.Contains(p.Database, StringComparer.OrdinalIgnoreCase)) into.Insert(0, p.Database);
+                    chosen = into.FirstOrDefault(d => string.Equals(d, chosen, StringComparison.OrdinalIgnoreCase)) ?? into.FirstOrDefault();
+                }
+            }
+            select(chosen);
+        }
+        finally { _loadingDbs = false; changed(); }
     }
 
     partial void OnSourceSchemaChanged(string? value)
@@ -173,9 +233,9 @@ public partial class TransferViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            StatusText = $"Connecting to {SourceProfile}...";
+            StatusText = $"Connecting to {SourceProfile}" + (string.IsNullOrEmpty(SourceDatabase) ? "" : $" · {SourceDatabase}") + "...";
             var sp = DbProviders.For(SourceProfile);
-            await using var c = await sp.OpenAsync(SourceProfile);
+            await using var c = await sp.OpenAsync(SrcEff!);
             var schemas = await sp.ListSchemasAsync(c);
             _loadingSchemas = true;
             var prev = _pendingRequest?.Schema ?? SourceSchema;
@@ -197,7 +257,7 @@ public partial class TransferViewModel : ObservableObject
         try
         {
             var sp = DbProviders.For(SourceProfile);
-            await using var c = await sp.OpenAsync(SourceProfile);
+            await using var c = await sp.OpenAsync(SrcEff!);
             var objs = await sp.ListObjectsAsync(c, SourceSchema);
             var want = _pendingRequest?.Tables.ToHashSet(StringComparer.OrdinalIgnoreCase);
             Tables.Clear(); CodeObjects.Clear();
@@ -221,7 +281,7 @@ public partial class TransferViewModel : ObservableObject
         try
         {
             var tp = DbProviders.For(TargetProfile);
-            await using var c = await tp.OpenAsync(TargetProfile);
+            await using var c = await tp.OpenAsync(TgtEff!);
             foreach (var s in await tp.ListSchemasAsync(c)) TargetSchemas.Add(s);
         }
         catch { /* offline target — the schema can still be typed */ }
@@ -244,6 +304,7 @@ public partial class TransferViewModel : ObservableObject
     [RelayCommand]
     private void Swap()
     {
+        _pendingDb = (TargetDatabase, SourceDatabase);
         (SourceProfile, TargetProfile) = (TargetProfile, SourceProfile);
         StatusText = "Swapped source and target — Load Objects to refresh the list.";
     }
@@ -254,18 +315,19 @@ public partial class TransferViewModel : ObservableObject
         if (SourceProfile == null || TargetProfile == null) { error = "Pick both connections."; return null; }
         if (string.IsNullOrEmpty(SourceSchema)) { error = "Load objects and pick a source schema."; return null; }
         if (string.IsNullOrWhiteSpace(TargetSchema)) { error = "Type a target schema."; return null; }
-        if (SourceProfile.Id == TargetProfile.Id && string.Equals(SourceSchema, TargetSchema.Trim(), StringComparison.OrdinalIgnoreCase))
-        { error = "Source and target are the same schema on the same connection."; return null; }
+        if (SourceProfile.Id == TargetProfile.Id && string.Equals(SrcEff!.Database, TgtEff!.Database, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(SourceSchema, TargetSchema.Trim(), StringComparison.OrdinalIgnoreCase))
+        { error = "Source and target are the same schema in the same database."; return null; }
         var tables = Tables.Where(t => t.IsChecked).Select(t => t.Name).ToList();
         var code = CodeObjects.Where(t => t.IsChecked).Select(t => t.Obj).ToList();
         if (tables.Count == 0 && code.Count == 0) { error = "Select at least one table or code object."; return null; }
         long.TryParse(CommitEvery, out var every);
         return new TransferOptions
         {
-            Source = SourceProfile, Target = TargetProfile, SourceSchema = SourceSchema!, TargetSchema = TargetSchema.Trim(),
+            Source = SrcEff!, Target = TgtEff!, SourceSchema = SourceSchema!, TargetSchema = TargetSchema.Trim(),
             Tables = tables, CodeObjects = code, Mode = Mode?.Value ?? TableLoadMode.CreateOrAppend, NameCase = NameCase?.Value ?? Core.Providers.NameCase.TargetDefault,
             DryRun = dryRun, ContinueOnError = ContinueOnError, ApplyCode = ApplyCode, RowFilter = string.IsNullOrWhiteSpace(RowFilter) ? null : RowFilter.Trim(),
-            CommitEveryRows = Math.Max(0, every),
+            CommitEveryRows = Math.Max(0, every), CopyIndexes = CopyIndexes, CopyForeignKeys = CopyForeignKeys,
         };
     }
 
@@ -394,14 +456,22 @@ public partial class TransferViewModel : ObservableObject
         if (_suppressPreset || value?.Transfer == null) return;
         var t = value.Transfer;
         PresetName = value.Name;
+        _pendingDb = (t.SourceDatabase, t.TargetDatabase);
         SourceProfile = Profiles.FirstOrDefault(p => p.Id == t.SourceProfileId) ?? SourceProfile;
         TargetProfile = Profiles.FirstOrDefault(p => p.Id == t.TargetProfileId) ?? TargetProfile;
+        // Same profile as before -> no profile-changed event, so apply the database directly.
+        _loadingDbs = true;
+        if (t.SourceDatabase != null) SourceDatabase = SourceDatabases.FirstOrDefault(d => string.Equals(d, t.SourceDatabase, StringComparison.OrdinalIgnoreCase)) ?? SourceDatabase;
+        if (t.TargetDatabase != null) TargetDatabase = TargetDatabases.FirstOrDefault(d => string.Equals(d, t.TargetDatabase, StringComparison.OrdinalIgnoreCase)) ?? TargetDatabase;
+        _loadingDbs = false;
         TargetSchema = t.TargetSchema;
         Mode = Modes.FirstOrDefault(m => m.Value == t.Mode) ?? Modes[0];
         NameCase = NameCases.FirstOrDefault(m => m.Value == t.NameCase) ?? NameCases[0];
         ApplyCode = t.ApplyCode;
         RowFilter = t.RowFilter ?? "";
         CommitEvery = t.CommitEveryRows.ToString();
+        CopyIndexes = t.CopyIndexes;
+        CopyForeignKeys = t.CopyForeignKeys;
         _pendingRequest = (t.SourceProfileId, t.SourceSchema, t.Tables.ToArray());
         _ = LoadObjectsAsync().ContinueWith(_ => Ui(() =>
         {
@@ -425,11 +495,11 @@ public partial class TransferViewModel : ObservableObject
             Kind = PresetKind.Transfer,
             Transfer = new TransferPreset
             {
-                SourceProfileId = o.Source.Id, TargetProfileId = o.Target.Id, SourceSchema = o.SourceSchema, TargetSchema = o.TargetSchema,
+                SourceProfileId = o.Source.Id, TargetProfileId = o.Target.Id, SourceDatabase = SourceProfile?.Database == o.Source.Database ? null : o.Source.Database, TargetDatabase = TargetProfile?.Database == o.Target.Database ? null : o.Target.Database, SourceSchema = o.SourceSchema, TargetSchema = o.TargetSchema,
                 // "all tables" is saved as an empty list, so new tables are picked up by scheduled runs too
                 Tables = allTables ? new() : o.Tables.ToList(),
                 CodeObjects = o.CodeObjects.ToList(), Mode = o.Mode, NameCase = o.NameCase, ApplyCode = o.ApplyCode,
-                RowFilter = o.RowFilter, CommitEveryRows = o.CommitEveryRows,
+                RowFilter = o.RowFilter, CommitEveryRows = o.CommitEveryRows, CopyIndexes = o.CopyIndexes, CopyForeignKeys = o.CopyForeignKeys,
             },
         });
         StatusText = $"Saved preset '{PresetName.Trim()}'" + (allTables ? " (all tables — new tables included automatically)." : ".") + " Schedule it from the Scheduler page.";

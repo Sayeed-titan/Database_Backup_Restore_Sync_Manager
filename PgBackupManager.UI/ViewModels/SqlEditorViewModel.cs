@@ -57,10 +57,14 @@ public partial class ResultSetVm : ObservableObject
     {
         get
         {
-            if (Table.Rows.Count == 0) return "0 rows";
+            // rows marked for deletion are hidden until saved; added rows count immediately
+            var visible = Table.Rows.Count - _deleted.Count;
+            if (visible <= 0) return "0 rows";
             var from = PageStart + 1;
-            var to = Math.Min(PageStart + PageSize, Table.Rows.Count);
-            var of = TotalRows.HasValue ? TotalRows.Value.ToString("N0") : Table.Rows.Count.ToString("N0") + (HasMoreOnServer ? "+" : "");
+            var to = Math.Min(PageStart + (PageView?.Count ?? PageSize), visible);
+            var of = HasMoreOnServer
+                ? (TotalRows.HasValue ? (TotalRows.Value + _inserted.Count - _deleted.Count).ToString("N0") : visible.ToString("N0") + "+")
+                : visible.ToString("N0");
             return $"Rows {from:N0}–{to:N0} of {of}";
         }
     }
@@ -92,11 +96,199 @@ public partial class ResultSetVm : ObservableObject
         PageIndex = Math.Clamp(PageIndex, 0, FetchedPages - 1);
         var page = Table.Clone();
         int end = Math.Min(PageStart + PageSize, Table.Rows.Count);
+        _pageToBuffer.Clear();
         page.BeginLoadData();
-        for (int i = PageStart; i < end; i++) page.Rows.Add(Table.Rows[i].ItemArray);
+        for (int i = PageStart; i < end; i++)
+        {
+            var b = Table.Rows[i];
+            if (_deleted.Contains(b)) continue;
+            _pageToBuffer[page.Rows.Add(b.ItemArray)] = b;
+        }
         page.EndLoadData();
+        page.ColumnChanged += OnPageCellChanged;
         PageView = page.DefaultView;
         Refresh();
+    }
+
+    // ------------------------------------------------------------ editing
+    // Supplied by the editor when the result could come from a single table.
+    public Func<Task<(string Schema, TableInfo Table)>>? ResolveEditTarget { get; init; }
+    public Func<string, TableInfo, IReadOnlyList<RowEdit>, Task<RowEditResult>>? SaveEdits { get; init; }
+
+    [ObservableProperty] private bool _isEditing;
+    [ObservableProperty] private int _pendingCount;
+    public bool CanEdit => ResolveEditTarget != null;
+    public string EditButtonText => IsEditing ? "DONE EDITING" : "EDIT";
+
+    private string _editSchema = "";
+    private TableInfo? _editTable;
+    private readonly Dictionary<string, ColumnInfo> _colMap = new(StringComparer.OrdinalIgnoreCase); // result column -> table column
+    private readonly Dictionary<DataRow, object[]> _originals = new();
+    private readonly HashSet<DataRow> _deleted = new();
+    private readonly HashSet<DataRow> _inserted = new();
+    private readonly Dictionary<DataRow, DataRow> _pageToBuffer = new();
+
+    partial void OnIsEditingChanged(bool value) => OnPropertyChanged(nameof(EditButtonText));
+
+    public bool IsColumnEditable(string resultColumn) =>
+        IsEditing && _colMap.TryGetValue(resultColumn, out var c) && c.Type != CanonicalType.Binary && !c.IsIdentity;
+
+    private void OnPageCellChanged(object? sender, DataColumnChangeEventArgs e)
+    {
+        if (!IsEditing || !_pageToBuffer.TryGetValue(e.Row, out var b)) return;
+        if (!_inserted.Contains(b) && !_originals.ContainsKey(b)) _originals[b] = b.ItemArray.ToArray()!;
+        if (e.Column == null) return;
+        b[e.Column.Ordinal] = e.Row[e.Column.Ordinal];
+        UpdatePending();
+    }
+
+    private void UpdatePending()
+    {
+        int changed = _originals.Count(kv => !_deleted.Contains(kv.Key) && !kv.Key.ItemArray.SequenceEqual(kv.Value));
+        PendingCount = changed + _deleted.Count + _inserted.Count;
+        OnPropertyChanged(nameof(RangeText)); OnPropertyChanged(nameof(Info));
+        SaveCommand.NotifyCanExecuteChanged(); DiscardCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand]
+    private async Task ToggleEditAsync()
+    {
+        if (IsEditing)
+        {
+            if (PendingCount > 0) { Note = "Save or discard your changes first."; return; }
+            IsEditing = false;
+            ShowPage();
+            return;
+        }
+        if (ResolveEditTarget == null) return;
+        try
+        {
+            IsFetching = true;
+            Note = "Checking the table…";
+            var (schema, table) = await ResolveEditTarget();
+            if (table.PrimaryKey.Count == 0) { Note = $"{table.Name} has no primary key — rows can't be identified safely, so it can't be edited here."; return; }
+            _colMap.Clear();
+            foreach (DataColumn dc in Table.Columns)
+            {
+                var name = dc.ColumnName.Replace("·", ".");
+                var col = table.Columns.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (col != null) _colMap[dc.ColumnName] = col;
+            }
+            var missing = table.PrimaryKey.Where(k => !_colMap.Values.Any(c => string.Equals(c.Name, k, StringComparison.OrdinalIgnoreCase))).ToList();
+            if (missing.Count > 0) { Note = $"Include the primary key column(s) {string.Join(", ", missing)} in the SELECT to edit."; return; }
+            _editSchema = schema; _editTable = table;
+            IsEditing = true;
+            Note = $"Editing {schema}.{table.Name} — type NULL for null; empty cells of NEW rows use the column default.";
+            ShowPage(); // regenerates columns with their read-only flags
+        }
+        catch (Exception ex) { Note = "Can't edit: " + ex.Message; }
+        finally { IsFetching = false; }
+    }
+
+    [RelayCommand]
+    private void AddRow()
+    {
+        if (!IsEditing) return;
+        var row = Table.NewRow();
+        for (int i = 0; i < Table.Columns.Count; i++) row[i] = "";
+        Table.Rows.Add(row);
+        _inserted.Add(row);
+        PageIndex = FetchedPages - 1;
+        ShowPage();
+        UpdatePending();
+    }
+
+    public void DeleteRows(IEnumerable<DataRow> pageRows)
+    {
+        if (!IsEditing) return;
+        foreach (var pr in pageRows.Distinct().ToList())
+        {
+            if (!_pageToBuffer.TryGetValue(pr, out var b)) continue;
+            if (_inserted.Remove(b)) Table.Rows.Remove(b);
+            else _deleted.Add(b);
+        }
+        ShowPage();
+        UpdatePending();
+    }
+
+    private bool HasPending => PendingCount > 0;
+
+    [RelayCommand(CanExecute = nameof(HasPending))]
+    private void Discard()
+    {
+        foreach (var (row, orig) in _originals) row.ItemArray = orig;
+        foreach (var r in _inserted) Table.Rows.Remove(r);
+        _originals.Clear(); _inserted.Clear(); _deleted.Clear();
+        ShowPage();
+        UpdatePending();
+        Note = "Changes discarded.";
+    }
+
+    [RelayCommand(CanExecute = nameof(HasPending))]
+    private async Task SaveAsync()
+    {
+        if (_editTable == null || SaveEdits == null) return;
+        List<RowEdit> edits;
+        try { edits = BuildEdits(); }
+        catch (Exception ex) { Note = "Not saved: " + ex.Message; return; }
+        if (edits.Count == 0) { Discard(); return; }
+        try
+        {
+            IsFetching = true;
+            Note = $"Saving {edits.Count} change(s)…";
+            var r = await SaveEdits(_editSchema, _editTable, edits);
+            foreach (var d in _deleted) Table.Rows.Remove(d);
+            _originals.Clear(); _inserted.Clear(); _deleted.Clear();
+            ShowPage();
+            UpdatePending();
+            Note = $"Saved — {r.Updated} updated, {r.Inserted} inserted, {r.Deleted} deleted." + (r.Inserted > 0 ? " Re-run the query to see generated values." : "");
+        }
+        catch (Exception ex) { Note = "Save failed, nothing was written: " + ex.Message; }
+        finally { IsFetching = false; }
+    }
+
+    private List<RowEdit> BuildEdits()
+    {
+        var t = _editTable!;
+        var cols = Table.Columns.Cast<DataColumn>().ToList();
+        object? Parse(object? cell, DataColumn dc, bool emptyNull = false)
+        {
+            var c = _colMap[dc.ColumnName];
+            try { return RowEditor.ParseCell(cell as string, c, emptyNull); }
+            catch (Exception ex) { throw new InvalidOperationException($"{c.Name}: '{cell}' isn't a valid {c.Type} ({ex.Message.Split(':')[0]})"); }
+        }
+        Dictionary<string, object?> Keys(object?[] values)
+        {
+            var keys = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var k in t.PrimaryKey)
+            {
+                var dc = cols.First(c => _colMap.TryGetValue(c.ColumnName, out var m) && string.Equals(m.Name, k, StringComparison.OrdinalIgnoreCase));
+                var raw = values[dc.Ordinal] as string;
+                if (RowEditor.IsTruncatedDisplay(raw)) throw new InvalidOperationException($"key column {k} is shown truncated, so the row can't be matched.");
+                keys[_colMap[dc.ColumnName].Name] = Parse(raw, dc);
+            }
+            return keys;
+        }
+
+        var edits = new List<RowEdit>();
+        foreach (var (row, orig) in _originals)
+        {
+            if (_deleted.Contains(row)) continue;
+            var e = new RowEdit { Kind = RowEditKind.Update, Keys = Keys(orig) };
+            foreach (var dc in cols.Where(c => IsColumnEditable(c.ColumnName)))
+                if (!Equals(row[dc], orig[dc.Ordinal])) e.Values[_colMap[dc.ColumnName].Name] = Parse(row[dc], dc);
+            if (e.Values.Count > 0) edits.Add(e);
+        }
+        foreach (var row in _deleted)
+            edits.Add(new RowEdit { Kind = RowEditKind.Delete, Keys = Keys(_originals.TryGetValue(row, out var o) ? o : row.ItemArray) });
+        foreach (var row in _inserted)
+        {
+            var e = new RowEdit { Kind = RowEditKind.Insert };
+            foreach (var dc in cols.Where(c => IsColumnEditable(c.ColumnName)))
+                if (row[dc] is string s && s.Length > 0) e.Values[_colMap[dc.ColumnName].Name] = Parse(s, dc);
+            edits.Add(e);
+        }
+        return edits;
     }
 
     private void Refresh()
@@ -284,7 +476,13 @@ public partial class SqlEditorViewModel : ObservableObject, ISqlCompletionSource
         Navigator.OpenSqlRequested += (_, r) => Application.Current?.Dispatcher.Invoke(() =>
         {
             var tab = NewTabWith(r.Title, r.Sql);
-            if (r.ProfileId.HasValue && Profiles.FirstOrDefault(p => p.Id == r.ProfileId) is { } prof) SelectedProfile = prof;
+            // A script meant for a specific connection must never be left on a
+            // different one: unknown profile -> no connection selected.
+            if (r.ProfileId.HasValue)
+            {
+                SelectedProfile = Profiles.FirstOrDefault(p => p.Id == r.ProfileId);
+                if (SelectedProfile == null) Log($"\"{r.Title}\" was generated for a connection that isn't saved here — pick the target connection before running it.");
+            }
             tab.IsDirty = false;
         });
         LoadHistory();
@@ -663,6 +861,8 @@ public partial class SqlEditorViewModel : ObservableObject, ISqlCompletionSource
                         Header = $"Result {n++}", Table = t, Sql = r.Sql, ChunkSize = Math.Max(100, settings.EditorMaxRows),
                         FetchMore = pageable && QueryPaging.PageSql(_provider.Dialect, r.Sql, 0, 1) != null ? MakeFetcher(r.Sql) : null,
                         CountAll = pageable ? MakeCounter(r.Sql) : null,
+                        ResolveEditTarget = r.Tables.Count == 1 && RowEditor.Analyze(r.Sql, _provider.Dialect).Target != null ? MakeEditResolver(r.Sql) : null,
+                        SaveEdits = MakeEditSaver(),
                     };
                     rs.Init(r.Truncated, Math.Clamp(settings.EditorPageSize, 50, 5000));
                     tab.Results.Add(rs);
@@ -710,6 +910,41 @@ public partial class SqlEditorViewModel : ObservableObject, ISqlCompletionSource
             var pageSql = QueryPaging.PageSql(_provider!.Dialect, sql, offset, limit)!;
             IsBusy = true;
             try { return await new QueryExecutor().FetchRowsAsync(conn, _tx, pageSql); }
+            finally { IsBusy = false; }
+        };
+    }
+
+    // Which table a result came from (schema defaults to the session schema), read fresh from the catalog.
+    private Func<Task<(string Schema, TableInfo Table)>> MakeEditResolver(string sql)
+    {
+        var profileId = SelectedProfile?.Id;
+        return async () =>
+        {
+            RequireSameConnection(profileId);
+            var (target, reason) = RowEditor.Analyze(sql, _provider!.Dialect);
+            if (target == null) throw new InvalidOperationException(reason);
+            var schema = target.Schema ?? SelectedSchema ?? SelectedProfile!.ResolveDefaultSchema();
+            await using var meta = await _provider.OpenAsync(SelectedProfile!);
+            var table = await _provider.GetTableAsync(meta, schema, target.Table)
+                        ?? await _provider.GetTableAsync(meta, schema, _provider.NormalizeName(target.Table))
+                        ?? throw new InvalidOperationException($"table {schema}.{target.Table} not found");
+            return (schema, table);
+        };
+    }
+
+    private Func<string, TableInfo, IReadOnlyList<RowEdit>, Task<RowEditResult>> MakeEditSaver()
+    {
+        var profileId = SelectedProfile?.Id;
+        return async (schema, table, edits) =>
+        {
+            var conn = RequireSameConnection(profileId);
+            IsBusy = true;
+            try
+            {
+                var r = await RowEditor.ApplyAsync(conn, _tx, _provider!, schema, table, edits);
+                Log($"grid edit on {schema}.{table.Name}: {r.Updated} updated, {r.Inserted} inserted, {r.Deleted} deleted" + (_tx != null ? " (inside the open transaction — Commit to keep)" : " (committed)"));
+                return r;
+            }
             finally { IsBusy = false; }
         };
     }
