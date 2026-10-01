@@ -272,14 +272,14 @@ WHERE n.nspname=@s AND p.proname=@n AND pg_get_function_identity_arguments(p.oid
 
         var dumpFile = Path.Combine(Path.GetTempPath(), $"sync_{Guid.NewGuid():N}.sql");
         var renamedFile = Path.Combine(Path.GetTempPath(), $"sync_{Guid.NewGuid():N}_renamed.sql");
-        var srcEnv = new Dictionary<string, string> { ["PGPASSWORD"] = o.SourcePassword };
-        var tgtEnv = new Dictionary<string, string> { ["PGPASSWORD"] = o.TargetPassword };
+        var srcEnv = PgToolEndpoint.Env(o.SourceProfile, o.SourcePassword);
+        var tgtEnv = PgToolEndpoint.Env(o.TargetProfile, o.TargetPassword);
         var tableList = string.Join(", ", tables);
         try
         {
             var dumpArgs = new List<string>
             {
-                $"--host={o.SourceProfile.Host}", $"--port={o.SourceProfile.Port}",
+                $"--host={o.SourceProfile.EndpointHost}", $"--port={o.SourceProfile.EndpointPort}",
                 $"--username={o.SourceProfile.Username}", $"--dbname={o.SourceProfile.Database}",
                 $"--file={dumpFile}", "--format=plain", "--schema-only", "--no-owner", "--no-privileges", "--no-password",
             };
@@ -294,7 +294,7 @@ WHERE n.nspname=@s AND p.proname=@n AND pg_get_function_identity_arguments(p.oid
 
             var restoreArgs = new List<string>
             {
-                $"--host={o.TargetProfile.Host}", $"--port={o.TargetProfile.Port}",
+                $"--host={o.TargetProfile.EndpointHost}", $"--port={o.TargetProfile.EndpointPort}",
                 $"--username={o.TargetProfile.Username}", $"--dbname={o.TargetProfile.Database}",
                 "--no-password", "--no-psqlrc", "--single-transaction", "-v", "ON_ERROR_STOP=1", $"--file={renamedFile}",
             };
@@ -351,13 +351,13 @@ WHERE n.nspname=@s AND p.proname=@n AND pg_get_function_identity_arguments(p.oid
 
         var dumpFile = Path.Combine(Path.GetTempPath(), $"sync_{Guid.NewGuid():N}.sql");
         var renamedFile = Path.Combine(Path.GetTempPath(), $"sync_{Guid.NewGuid():N}_renamed.sql");
-        var srcEnv = new Dictionary<string, string> { ["PGPASSWORD"] = o.SourcePassword };
-        var tgtEnv = new Dictionary<string, string> { ["PGPASSWORD"] = o.TargetPassword };
+        var srcEnv = PgToolEndpoint.Env(o.SourceProfile, o.SourcePassword);
+        var tgtEnv = PgToolEndpoint.Env(o.TargetProfile, o.TargetPassword);
         try
         {
             var dumpArgs = new List<string>
             {
-                $"--host={o.SourceProfile.Host}", $"--port={o.SourceProfile.Port}",
+                $"--host={o.SourceProfile.EndpointHost}", $"--port={o.SourceProfile.EndpointPort}",
                 $"--username={o.SourceProfile.Username}", $"--dbname={o.SourceProfile.Database}",
                 $"--file={dumpFile}", "--format=plain", "--data-only",
                 $"--table=\"{o.SourceSchema}\".\"{table}\"", "--no-owner", "--no-privileges", "--no-password",
@@ -369,7 +369,7 @@ WHERE n.nspname=@s AND p.proname=@n AND pg_get_function_identity_arguments(p.oid
 
             var restoreArgs = new List<string>
             {
-                $"--host={o.TargetProfile.Host}", $"--port={o.TargetProfile.Port}",
+                $"--host={o.TargetProfile.EndpointHost}", $"--port={o.TargetProfile.EndpointPort}",
                 $"--username={o.TargetProfile.Username}", $"--dbname={o.TargetProfile.Database}",
                 "--no-password", "--no-psqlrc", "--single-transaction", "-v", "ON_ERROR_STOP=1", $"--file={renamedFile}",
             };

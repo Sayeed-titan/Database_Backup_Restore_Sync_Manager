@@ -1,3 +1,4 @@
+using PgBackupManager.Core.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,6 +16,7 @@ namespace PgBackupManager.Core.Services;
 public sealed class SchemaCopyOptions
 {
     public string Host { get; set; } = "";
+    public ConnectionProfile? Profile { get; set; }
     public int Port { get; set; } = 5432;
     public string Database { get; set; } = "";
     public string Username { get; set; } = "";
@@ -34,14 +36,14 @@ public sealed class SchemaCopyRunner
     {
         var dumpFile = Path.Combine(Path.GetTempPath(), $"schemacopy_{Guid.NewGuid():N}.sql");
         var renamedFile = Path.Combine(Path.GetTempPath(), $"schemacopy_{Guid.NewGuid():N}_renamed.sql");
-        var env = new Dictionary<string, string> { ["PGPASSWORD"] = plaintextPassword };
+        var env = PgToolEndpoint.Env(opts.Profile, plaintextPassword);
 
         try
         {
             var dumpArgs = new List<string>
             {
-                $"--host={opts.Host}",
-                $"--port={opts.Port}",
+                $"--host={PgToolEndpoint.Resolve(opts.Profile, opts.Host, opts.Port).Host}",
+                $"--port={PgToolEndpoint.Resolve(opts.Profile, opts.Host, opts.Port).Port}",
                 $"--username={opts.Username}",
                 $"--dbname={opts.Database}",
                 $"--file={dumpFile}",
@@ -59,8 +61,8 @@ public sealed class SchemaCopyRunner
 
             var restoreArgs = new List<string>
             {
-                $"--host={opts.Host}",
-                $"--port={opts.Port}",
+                $"--host={PgToolEndpoint.Resolve(opts.Profile, opts.Host, opts.Port).Host}",
+                $"--port={PgToolEndpoint.Resolve(opts.Profile, opts.Host, opts.Port).Port}",
                 $"--username={opts.Username}",
                 $"--dbname={opts.Database}",
                 "--no-password",
