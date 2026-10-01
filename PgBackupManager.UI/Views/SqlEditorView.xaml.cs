@@ -113,6 +113,9 @@ public partial class SqlEditorView : UserControl
         }
         e.Column.Header = new TextBlock { Text = name.Replace("·", ".") };
         e.Column.SortMemberPath = name;
+        // In edit mode only real, non-binary, non-identity table columns are editable.
+        var rs = Vm.SelectedTab?.SelectedResult;
+        e.Column.IsReadOnly = !(rs?.IsColumnEditable(name) ?? false);
     }
 
     // Absolute row number (page offset + position), so page 3 starts at 1,001 not 1.
@@ -120,6 +123,14 @@ public partial class SqlEditorView : UserControl
     {
         var start = Vm.SelectedTab?.SelectedResult?.PageStart ?? 0;
         e.Row.Header = (start + e.Row.GetIndex() + 1).ToString("N0");
+    }
+
+    private void DeleteRows_Click(object sender, RoutedEventArgs e)
+    {
+        var rows = ResultGrid.SelectedCells.Select(c => c.Item).Concat(ResultGrid.SelectedItems.Cast<object>())
+            .OfType<System.Data.DataRowView>().Select(v => v.Row).Distinct().ToList();
+        if (rows.Count == 0) { MessageBox.Show("Select the row(s) to delete first (click their row numbers).", "Delete rows"); return; }
+        Vm.SelectedTab?.SelectedResult?.DeleteRows(rows);
     }
 
     private void ResultChip_Click(object sender, MouseButtonEventArgs e)
