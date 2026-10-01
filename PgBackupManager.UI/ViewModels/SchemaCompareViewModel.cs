@@ -43,6 +43,16 @@ public partial class SchemaCompareViewModel : ObservableObject
     [ObservableProperty] private ConnectionProfile? _targetProfile;
     public ObservableCollection<string> SourceSchemas { get; } = new();
     public ObservableCollection<string> TargetSchemas { get; } = new();
+    public ObservableCollection<string> SourceDatabases { get; } = new();
+    public ObservableCollection<string> TargetDatabases { get; } = new();
+    [ObservableProperty] private string? _sourceDatabase;
+    [ObservableProperty] private string? _targetDatabase;
+    public bool HasSourceDatabases => SourceDatabases.Count > 1;
+    public bool HasTargetDatabases => TargetDatabases.Count > 1;
+    private bool _loadingDbs;
+    private (string? Source, string? Target) _pendingDb;
+    private ConnectionProfile? SrcEff => SourceProfile?.WithDatabase(SourceDatabase);
+    private ConnectionProfile? TgtEff => TargetProfile?.WithDatabase(TargetDatabase);
     [ObservableProperty] private string? _sourceSchema;
     [ObservableProperty] private string? _targetSchema;
     public IReadOnlyList<Choice<NameCase>> NameCases { get; } = new Choice<NameCase>[]
@@ -95,8 +105,20 @@ public partial class SchemaCompareViewModel : ObservableObject
         TargetProfile = Profiles.FirstOrDefault(p => p.Id == t);
     }
 
-    partial void OnSourceProfileChanged(ConnectionProfile? value) => _ = LoadSchemasAsync(value, SourceSchemas, v => SourceSchema = v);
-    partial void OnTargetProfileChanged(ConnectionProfile? value) => _ = LoadSchemasAsync(value, TargetSchemas, v => TargetSchema = v);
+    partial void OnSourceProfileChanged(ConnectionProfile? value) => _ = LoadSideAsync(value, SourceDatabases, v => SourceDatabase = v, nameof(HasSourceDatabases), _pendingDb.Source, SourceSchemas, v => SourceSchema = v);
+    partial void OnTargetProfileChanged(ConnectionProfile? value) => _ = LoadSideAsync(value, TargetDatabases, v => TargetDatabase = v, nameof(HasTargetDatabases), _pendingDb.Target, TargetSchemas, v => TargetSchema = v);
+    partial void OnSourceDatabaseChanged(string? value) { if (!_loadingDbs) _ = LoadSchemasAsync(SrcEff, SourceSchemas, v => SourceSchema = v); }
+    partial void OnTargetDatabaseChanged(string? value) { if (!_loadingDbs) _ = LoadSchemasAsync(TgtEff, TargetSchemas, v => TargetSchema = v); }
+
+    private async Task LoadSideAsync(ConnectionProfile? p, ObservableCollection<string> dbs, Action<string?> selectDb, string hasProp, string? prefer,
+        ObservableCollection<string> schemas, Action<string?> selectSchema)
+    {
+        _loadingDbs = true;
+        string? chosen;
+        try { chosen = await DbPicker.LoadAsync(p, dbs, prefer); selectDb(chosen); }
+        finally { _loadingDbs = false; OnPropertyChanged(hasProp); }
+        await LoadSchemasAsync(p?.WithDatabase(chosen), schemas, selectSchema);
+    }
 
     private async Task LoadSchemasAsync(ConnectionProfile? p, ObservableCollection<string> into, Action<string?> select)
     {
@@ -116,6 +138,7 @@ public partial class SchemaCompareViewModel : ObservableObject
     private void Swap()
     {
         var (sp, ss, tp, ts) = (SourceProfile, SourceSchema, TargetProfile, TargetSchema);
+        _pendingDb = (TargetDatabase, SourceDatabase);
         SourceProfile = tp; TargetProfile = sp;
         Application.Current?.Dispatcher.BeginInvoke(() => { SourceSchema = ts; TargetSchema = ss; }, System.Windows.Threading.DispatcherPriority.Background);
     }
@@ -133,7 +156,7 @@ public partial class SchemaCompareViewModel : ObservableObject
         {
             var r = await _runner.CompareAsync(new SchemaCompareOptions
             {
-                Source = SourceProfile, Target = TargetProfile, SourceSchema = SourceSchema!, TargetSchema = TargetSchema!,
+                Source = SrcEff!, Target = TgtEff!, SourceSchema = SourceSchema!, TargetSchema = TargetSchema!,
                 NameCase = NameCase?.Value ?? Core.Providers.NameCase.TargetDefault, CompareCode = CompareCode, CompareDefinitions = CompareDefinitions,
             }, _cts.Token);
             _all = r.Items.Select(i => new SchemaDiffRow { Item = i }).ToList();
@@ -170,7 +193,7 @@ public partial class SchemaCompareViewModel : ObservableObject
         if (_runner == null) { StatusText = "Run a compare first."; return; }
         var items = (selected.Count > 0 ? selected : Rows.ToList()).Select(r => r.Item).ToList();
         var script = _runner.BuildSyncScript(items);
-        Navigator.OpenSql($"sync {SourceSchema} → {TargetSchema}", script, TargetProfile?.Id);
+        Navigator.OpenSql($"sync {SourceSchema} → {TargetSchema}", script, TargetProfile?.Id, TgtEff?.Database);
         StatusText = $"Sync script for {items.Count} difference(s) opened in the SQL Editor on {TargetProfile} — review, then Run.";
     }
 }

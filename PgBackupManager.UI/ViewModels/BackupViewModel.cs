@@ -215,6 +215,7 @@ public partial class BackupViewModel : ObservableObject
     private BackupJob BuildJob() => new()
     {
         Host = SelectedProfile?.Host ?? "",
+        Profile = SelectedProfile,
         Port = SelectedProfile?.Port ?? 5432,
         Database = SelectedProfile?.Database ?? "",
         Username = SelectedProfile?.Username ?? "",
@@ -592,6 +593,7 @@ public partial class BackupViewModel : ObservableObject
             var subJob = new BackupJob
             {
                 Host = job.Host,
+                Profile = job.Profile,
                 Port = job.Port,
                 Database = job.Database,
                 Username = job.Username,
