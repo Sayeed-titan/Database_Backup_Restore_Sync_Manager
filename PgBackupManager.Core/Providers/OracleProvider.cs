@@ -224,6 +224,50 @@ ORDER BY DECODE(object_type,'TABLE',0,'VIEW',1,'PACKAGE',2,'PROCEDURE',3,'FUNCTI
 
     public override int MaxBatchRows(int columnCount) => 2000;
 
+    public override async Task<List<IndexInfo>> GetIndexesAsync(DbConnection c, string schema, string table, CancellationToken ct = default)
+    {
+        // NORMAL / BITMAP indexes only (function-based ones are skipped); the PK's own index is excluded.
+        const string sql = @"
+SELECT i.index_name, i.uniqueness, LISTAGG(ic.column_name, CHR(1)) WITHIN GROUP (ORDER BY ic.column_position)
+FROM all_indexes i
+JOIN all_ind_columns ic ON ic.index_owner = i.owner AND ic.index_name = i.index_name
+WHERE i.table_owner = :s AND i.table_name = :t AND i.index_type IN ('NORMAL', 'BITMAP')
+  AND i.index_name NOT IN (SELECT NVL(index_name, '-') FROM all_constraints WHERE owner = :s AND table_name = :t AND constraint_type = 'P')
+GROUP BY i.index_name, i.uniqueness
+ORDER BY i.index_name";
+        return (await RowsAsync(c, sql, ct, ("s", schema), ("t", table)))
+            .Select(r => new IndexInfo(S(r[0]), Split1(r[2]), S(r[1]) == "UNIQUE")).ToList();
+    }
+
+    public override async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(DbConnection c, string schema, string table, CancellationToken ct = default)
+    {
+        const string sql = @"
+SELECT c.constraint_name,
+       LISTAGG(cc.column_name, CHR(1)) WITHIN GROUP (ORDER BY cc.position),
+       r.owner, r.table_name,
+       (SELECT LISTAGG(rc.column_name, CHR(1)) WITHIN GROUP (ORDER BY rc.position)
+          FROM all_cons_columns rc WHERE rc.owner = r.owner AND rc.constraint_name = r.constraint_name),
+       c.delete_rule
+FROM all_constraints c
+JOIN all_cons_columns cc ON cc.owner = c.owner AND cc.constraint_name = c.constraint_name
+JOIN all_constraints r ON r.owner = c.r_owner AND r.constraint_name = c.r_constraint_name
+WHERE c.owner = :s AND c.table_name = :t AND c.constraint_type = 'R'
+GROUP BY c.constraint_name, r.owner, r.table_name, r.constraint_name, c.delete_rule
+ORDER BY c.constraint_name";
+        return (await RowsAsync(c, sql, ct, ("s", schema), ("t", table)))
+            .Select(r => new ForeignKeyInfo(S(r[0]), Split1(r[1]), S(r[2]), S(r[3]), Split1(r[4]), NormalizeAction(S(r[5])))).ToList();
+    }
+
+    public override string BuildAddColumn(string schema, string table, ColumnInfo col) =>
+        $"ALTER TABLE {Qualify(schema, table)} ADD ({Quote(col.Name)} {NativeType(col, false)}{(col.Nullable ? "" : " NOT NULL")})";
+
+    public override string? BuildAlterColumnType(string schema, string table, ColumnInfo col) =>
+        $"ALTER TABLE {Qualify(schema, table)} MODIFY ({Quote(col.Name)} {NativeType(col, false)})";
+
+    // Oracle: no ON UPDATE at all; ON DELETE only CASCADE / SET NULL.
+    protected override string RefAction(string evt, string action) =>
+        evt == "DELETE" && action is "CASCADE" or "SET NULL" ? $" ON DELETE {action}" : "";
+
     public override void PrepareReadCommand(DbCommand cmd)
     {
         cmd.CommandTimeout = 0;

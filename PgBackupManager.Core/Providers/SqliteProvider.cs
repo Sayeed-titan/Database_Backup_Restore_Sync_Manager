@@ -94,6 +94,40 @@ public sealed class SqliteProvider : DbProviderBase
 
     public override int MaxBatchRows(int columnCount) => Math.Clamp(30000 / Math.Max(1, columnCount), 1, 500);
 
+    public override async Task<List<IndexInfo>> GetIndexesAsync(DbConnection c, string schema, string table, CancellationToken ct = default)
+    {
+        var list = new List<IndexInfo>();
+        // index_list: seq, name, unique, origin (c = CREATE INDEX, u = UNIQUE constraint, pk), partial
+        foreach (var ix in await RowsAsync(c, $"PRAGMA {Quote(schema)}.index_list({Quote(table)})", ct))
+        {
+            if (S(ix[3]) == "pk" || Convert.ToInt64(ix[4]) == 1) continue;
+            var cols = await RowsAsync(c, $"PRAGMA {Quote(schema)}.index_info({Quote(S(ix[1]))})", ct);
+            if (cols.Count == 0 || cols.Any(r => r[2] == null)) continue; // expression index
+            list.Add(new IndexInfo(S(ix[1]), cols.OrderBy(r => Convert.ToInt64(r[0])).Select(r => S(r[2])).ToList(), Convert.ToInt64(ix[2]) == 1));
+        }
+        return list;
+    }
+
+    public override async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(DbConnection c, string schema, string table, CancellationToken ct = default)
+    {
+        // foreign_key_list: id, seq, table, from, to, on_update, on_delete, match
+        var rows = await RowsAsync(c, $"PRAGMA {Quote(schema)}.foreign_key_list({Quote(table)})", ct);
+        return rows.GroupBy(r => Convert.ToInt64(r[0]))
+            .Where(g => g.All(r => r[4] != null))  // "REFERENCES t" without columns = implicit PK; skipped
+            .Select(g => new ForeignKeyInfo($"fk_{table}_{g.Key}", g.OrderBy(r => Convert.ToInt64(r[1])).Select(r => S(r[3])).ToList(), schema, S(g.First()[2]),
+                g.OrderBy(r => Convert.ToInt64(r[1])).Select(r => S(r[4])).ToList(), NormalizeAction(S(g.First()[6])), NormalizeAction(S(g.First()[5])))).ToList();
+    }
+
+    // SQLite can't change a column's type in place (table rebuild needed).
+    public override string? BuildAlterColumnType(string schema, string table, ColumnInfo col) => null;
+
+    // SQLite syntax: the schema goes on the INDEX name, the table stays unqualified.
+    public override string BuildCreateIndex(string schema, TableInfo table, IndexInfo ix) =>
+        $"CREATE {(ix.Unique ? "UNIQUE " : "")}INDEX {Quote(schema)}.{Quote(ix.Name)} ON {Quote(table.Name)} ({string.Join(", ", ix.Columns.Select(Quote))})";
+
+    // SQLite can't ALTER TABLE ... ADD CONSTRAINT.
+    public override string? BuildAddForeignKey(string schema, string table, ForeignKeyInfo fk) => null;
+
     protected override string UpsertSuffix(TableInfo t)
     {
         var nonKey = t.Columns.Where(c => !TypeFacts.IsKey(t, c)).ToList();

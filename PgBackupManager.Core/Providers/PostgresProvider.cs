@@ -21,6 +21,9 @@ public sealed class PostgresProvider : DbProviderBase
     public override DbConnection CreateConnection(string cs) => new NpgsqlConnection(cs);
     public override string NormalizeName(string name) => name.ToLowerInvariant();
 
+    public override async Task<List<string>> ListDatabasesAsync(DbConnection c, CancellationToken ct = default) =>
+        (await RowsAsync(c, "SELECT datname FROM pg_database WHERE NOT datistemplate AND datallowconn ORDER BY 1", ct)).Select(r => S(r[0])).ToList();
+
     public override async Task<List<string>> ListSchemasAsync(DbConnection c, CancellationToken ct = default) =>
         (await RowsAsync(c, @"SELECT nspname FROM pg_namespace
             WHERE nspname NOT LIKE 'pg\_%' AND nspname <> 'information_schema' ORDER BY 1", ct))
@@ -169,6 +172,46 @@ ORDER BY k.ord";
         ExecAsync(c, $"DROP TABLE IF EXISTS {Qualify(schema, table)} CASCADE", ct);
 
     public override int MaxBatchRows(int columnCount) => 5000;
+
+    public override int MaxIdentifierLength => 63;
+
+    public override async Task<List<IndexInfo>> GetIndexesAsync(DbConnection c, string schema, string table, CancellationToken ct = default)
+    {
+        // Key columns only (indnkeyatts); expression (attnum 0) and partial indexes are skipped.
+        const string sql = @"
+SELECT i.relname, ix.indisunique,
+       array_agg(a.attname ORDER BY k.ord) FILTER (WHERE a.attname IS NOT NULL),
+       bool_or(k.attnum = 0)
+FROM pg_index ix
+JOIN pg_class t ON t.oid = ix.indrelid
+JOIN pg_namespace n ON n.oid = t.relnamespace
+JOIN pg_class i ON i.oid = ix.indexrelid
+JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY k(attnum, ord) ON k.ord <= ix.indnkeyatts
+LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+WHERE n.nspname = @s AND t.relname = @t AND NOT ix.indisprimary AND ix.indpred IS NULL
+GROUP BY i.relname, ix.indisunique
+ORDER BY 1";
+        return (await RowsAsync(c, sql, ct, ("s", schema), ("t", table)))
+            .Where(r => !(bool)r[3]! && r[2] != null)
+            .Select(r => new IndexInfo(S(r[0]), Split1(r[2]), (bool)r[1]!)).ToList();
+    }
+
+    public override async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(DbConnection c, string schema, string table, CancellationToken ct = default)
+    {
+        const string sql = @"
+SELECT c.conname,
+       (SELECT array_agg(a.attname ORDER BY k.ord) FROM unnest(c.conkey) WITH ORDINALITY k(n, ord) JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.n),
+       rn.nspname, rt.relname,
+       (SELECT array_agg(a.attname ORDER BY k.ord) FROM unnest(c.confkey) WITH ORDINALITY k(n, ord) JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.n),
+       c.confdeltype::text, c.confupdtype::text
+FROM pg_constraint c
+JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace
+JOIN pg_class rt ON rt.oid = c.confrelid JOIN pg_namespace rn ON rn.oid = rt.relnamespace
+WHERE c.contype = 'f' AND n.nspname = @s AND t.relname = @t
+ORDER BY 1";
+        return (await RowsAsync(c, sql, ct, ("s", schema), ("t", table)))
+            .Select(r => new ForeignKeyInfo(S(r[0]), Split1(r[1]), S(r[2]), S(r[3]), Split1(r[4]), NormalizeAction(S(r[5])), NormalizeAction(S(r[6])))).ToList();
+    }
 
     // Native types the binary COPY protocol can write straight from the
     // coerced .NET value. Anything else (enums, arrays, interval, money,

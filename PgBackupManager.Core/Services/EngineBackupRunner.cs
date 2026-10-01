@@ -63,7 +63,8 @@ public sealed class EngineBackupRunner
         {
             var args = new List<string>
             {
-                $"--defaults-extra-file={cnf}", $"--host={p.Host}", $"--port={p.Port}", $"--user={p.Username}",
+                $"--defaults-extra-file={cnf}", $"--host={p.EndpointHost}", $"--port={p.EndpointPort}", $"--user={p.Username}",
+                p.SslMode is { } ssl ? $"--ssl-mode={(ssl switch { "Disable" => "DISABLED", "Prefer" => "PREFERRED", "Require" => "REQUIRED", "VerifyCA" => "VERIFY_CA", _ => "VERIFY_IDENTITY" })}" : "--ssl-mode=PREFERRED",
                 "--single-transaction", "--routines", "--triggers", "--events", "--hex-blob", "--default-character-set=utf8mb4",
                 $"--result-file={outFile}", "--databases", schema ?? p.Database,
             };
@@ -108,8 +109,8 @@ public sealed class EngineBackupRunner
                   ?? throw new InvalidOperationException($"{tool} not found — download Oracle Instant Client from Settings > Dependencies.");
         var pwd = SecretProtector.Unprotect(p.EncryptedPasswordBase64);
         var connect = p.OracleUseSid
-            ? $"(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={p.Host})(PORT={p.Port}))(CONNECT_DATA=(SID={p.Database})))"
-            : $"//{p.Host}:{p.Port}/{p.Database}";
+            ? $"(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={p.EndpointHost})(PORT={p.EndpointPort}))(CONNECT_DATA=(SID={p.Database})))"
+            : $"//{p.EndpointHost}:{p.EndpointPort}/{p.Database}";
         var par = Path.Combine(Path.GetTempPath(), $"pgbm_{Guid.NewGuid():N}.par");
         var lines = new List<string>
         {

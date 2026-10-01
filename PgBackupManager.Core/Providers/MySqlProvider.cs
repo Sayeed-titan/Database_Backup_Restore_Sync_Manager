@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using MySqlConnector;
@@ -128,6 +129,44 @@ ORDER BY 3, 2, 1";
     };
 
     public override int MaxBatchRows(int columnCount) => Math.Clamp(60000 / Math.Max(1, columnCount), 1, 1000);
+
+    public override int MaxIdentifierLength => 64;
+
+    public override async Task<List<IndexInfo>> GetIndexesAsync(DbConnection c, string schema, string table, CancellationToken ct = default)
+    {
+        var rows = await RowsAsync(c, @"SELECT index_name, non_unique, column_name, seq_in_index FROM information_schema.statistics
+            WHERE table_schema=@s AND table_name=@t AND index_name <> 'PRIMARY' ORDER BY index_name, seq_in_index", ct, ("@s", schema), ("@t", table));
+        return rows.GroupBy(r => S(r[0]))
+            .Where(g => g.All(r => r[2] != null))   // functional key parts have no column_name
+            .Select(g => new IndexInfo(g.Key, g.Select(r => S(r[2])).ToList(), Convert.ToInt64(g.First()[1]) == 0)).ToList();
+    }
+
+    public override async Task<List<ForeignKeyInfo>> GetForeignKeysAsync(DbConnection c, string schema, string table, CancellationToken ct = default)
+    {
+        var rows = await RowsAsync(c, @"
+SELECT k.constraint_name, k.column_name, k.referenced_table_schema, k.referenced_table_name, k.referenced_column_name, r.delete_rule, r.update_rule
+FROM information_schema.key_column_usage k
+JOIN information_schema.referential_constraints r ON r.constraint_schema = k.constraint_schema AND r.constraint_name = k.constraint_name
+WHERE k.table_schema=@s AND k.table_name=@t AND k.referenced_table_name IS NOT NULL
+ORDER BY k.constraint_name, k.ordinal_position", ct, ("@s", schema), ("@t", table));
+        return rows.GroupBy(r => S(r[0])).Select(g => new ForeignKeyInfo(g.Key, g.Select(r => S(r[1])).ToList(), S(g.First()[2]), S(g.First()[3]),
+            g.Select(r => S(r[4])).ToList(), NormalizeAction(S(g.First()[5])), NormalizeAction(S(g.First()[6])))).ToList();
+    }
+
+    public override string? BuildAlterColumnType(string schema, string table, ColumnInfo col) =>
+        $"ALTER TABLE {Qualify(schema, table)} MODIFY COLUMN {Quote(col.Name)} {NativeType(col, false)}{(col.Nullable ? " NULL" : " NOT NULL")}";
+
+    // MySQL can't index TEXT/BLOB without a prefix length.
+    public override string BuildCreateIndex(string schema, TableInfo table, IndexInfo ix)
+    {
+        string Col(string name)
+        {
+            var col = table.Columns.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+            var lob = col != null && Regex.IsMatch(col.NativeType, @"(text|blob|json)", RegexOptions.IgnoreCase);
+            return Quote(name) + (lob ? "(191)" : "");
+        }
+        return $"CREATE {(ix.Unique ? "UNIQUE " : "")}INDEX {Quote(ix.Name)} ON {Qualify(schema, table.Name)} ({string.Join(", ", ix.Columns.Select(Col))})";
+    }
 
     protected override string UpsertSuffix(TableInfo t)
     {
