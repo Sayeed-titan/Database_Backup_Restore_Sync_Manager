@@ -58,7 +58,7 @@ public class SqlTextEditor : TextEditor
         {
             if (_syncing) return;
             _syncing = true;
-            Code = Text;
+            SetCurrentValue(CodeProperty, Text); // keeps a OneWay binding alive (a plain set would replace it)
             _syncing = false;
         };
         TextArea.TextEntered += OnTextEntered;

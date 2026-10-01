@@ -38,6 +38,35 @@ public partial class ProfileEditorViewModel : ObservableObject
     // Oracle only.
     [ObservableProperty] private bool _oracleUseSid;
 
+    // Security: SSL mode + SSH tunnel (secrets set from the PasswordBoxes).
+    public static IReadOnlyList<string> SslModes { get; } = new[] { "(engine default)", "Disable", "Prefer", "Require", "VerifyCA", "VerifyFull" };
+    [ObservableProperty] private bool _showSecurity;
+    [ObservableProperty] private string _sslMode = "(engine default)";
+    [ObservableProperty] private bool _sshEnabled;
+    [ObservableProperty] private string _sshHost = "";
+    [ObservableProperty] private int _sshPort = 22;
+    [ObservableProperty] private string _sshUser = "";
+    [ObservableProperty] private string _sshKeyFile = "";
+    public string SshPassword { get; set; } = "";
+    public string SshKeyPassphrase { get; set; } = "";
+
+    public string SecuritySummary => string.Join(" · ", new[]
+    {
+        SslMode == SslModes[0] ? null : $"SSL {SslMode}",
+        SshEnabled ? $"SSH {SshUser}@{SshHost}" : null,
+    }.Where(s => s != null));
+    partial void OnSslModeChanged(string value) => OnPropertyChanged(nameof(SecuritySummary));
+    partial void OnSshEnabledChanged(bool value) => OnPropertyChanged(nameof(SecuritySummary));
+    partial void OnSshHostChanged(string value) => OnPropertyChanged(nameof(SecuritySummary));
+    partial void OnSshUserChanged(string value) => OnPropertyChanged(nameof(SecuritySummary));
+
+    [RelayCommand]
+    private void BrowseSshKey()
+    {
+        var dlg = new OpenFileDialog { Title = "SSH private key (OpenSSH / PEM / PuTTY .ppk)", Filter = "All files (*.*)|*.*" };
+        if (dlg.ShowDialog() == true) SshKeyFile = dlg.FileName;
+    }
+
     public EngineOption? SelectedEngine
     {
         get => AllEngines.FirstOrDefault(e => e.Engine == Engine);
@@ -79,6 +108,15 @@ public partial class ProfileEditorViewModel : ObservableObject
         ExtraOptions = profile.ExtraOptions ?? "";
         SqlIntegratedSecurity = profile.SqlIntegratedSecurity;
         OracleUseSid = profile.OracleUseSid;
+        SslMode = string.IsNullOrEmpty(profile.SslMode) ? SslModes[0] : profile.SslMode!;
+        SshEnabled = profile.SshEnabled;
+        SshHost = profile.SshHost ?? "";
+        SshPort = profile.SshPort > 0 ? profile.SshPort : 22;
+        SshUser = profile.SshUser ?? "";
+        SshKeyFile = profile.SshKeyFile ?? "";
+        SshPassword = PgBackupManager.Core.Services.SecretProtector.Unprotect(profile.SshEncryptedPassword ?? "");
+        SshKeyPassphrase = PgBackupManager.Core.Services.SecretProtector.Unprotect(profile.SshEncryptedKeyPassphrase ?? "");
+        ShowSecurity = SshEnabled || SslMode != SslModes[0];
         Password = PgBackupManager.Core.Services.SecretProtector.Unprotect(profile.EncryptedPasswordBase64);
     }
 
@@ -129,6 +167,14 @@ public partial class ProfileEditorViewModel : ObservableObject
         Source.ExtraOptions = string.IsNullOrWhiteSpace(ExtraOptions) ? null : ExtraOptions.Trim();
         Source.SqlIntegratedSecurity = SqlIntegratedSecurity;
         Source.OracleUseSid = OracleUseSid;
+        Source.SslMode = SslMode == SslModes[0] ? null : SslMode;
+        Source.SshEnabled = SshEnabled;
+        Source.SshHost = string.IsNullOrWhiteSpace(SshHost) ? null : SshHost.Trim();
+        Source.SshPort = SshPort > 0 ? SshPort : 22;
+        Source.SshUser = string.IsNullOrWhiteSpace(SshUser) ? null : SshUser.Trim();
+        Source.SshKeyFile = string.IsNullOrWhiteSpace(SshKeyFile) ? null : SshKeyFile.Trim();
+        Source.SshEncryptedPassword = string.IsNullOrEmpty(SshPassword) ? null : PgBackupManager.Core.Services.SecretProtector.Protect(SshPassword);
+        Source.SshEncryptedKeyPassphrase = string.IsNullOrEmpty(SshKeyPassphrase) ? null : PgBackupManager.Core.Services.SecretProtector.Protect(SshKeyPassphrase);
         Source.EncryptedPasswordBase64 = PgBackupManager.Core.Services.SecretProtector.Protect(Password ?? "");
         return Source;
     }

@@ -2,7 +2,7 @@ using System;
 
 namespace PgBackupManager.UI.Services;
 
-public sealed record OpenSqlRequest(string Title, string Sql, Guid? ProfileId);
+public sealed record OpenSqlRequest(string Title, string Sql, Guid? ProfileId, string? Database = null);
 
 // Cross-tab hand-offs ("open this converted script in the SQL editor",
 // "go to Transfer"). MainWindow switches the visible page; the target
@@ -14,9 +14,9 @@ public static class Navigator
 
     public static void Go(string page) => PageRequested?.Invoke(null, page);
 
-    public static void OpenSql(string title, string sql, Guid? profileId = null)
+    public static void OpenSql(string title, string sql, Guid? profileId = null, string? database = null)
     {
-        OpenSqlRequested?.Invoke(null, new OpenSqlRequest(title, sql, profileId));
+        OpenSqlRequested?.Invoke(null, new OpenSqlRequest(title, sql, profileId, database));
         Go("Editor");
     }
 }

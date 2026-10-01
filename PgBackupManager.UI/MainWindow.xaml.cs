@@ -1,5 +1,8 @@
 using System;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
+using System.Windows.Media;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -35,6 +38,13 @@ public partial class MainWindow : Window
         ThemeService.ThemeChanged += (_, _) => UpdateThemeGlyph();
         UpdateThemeGlyph();
 
+        // Borderless window + WindowChrome: without this, a maximized window is
+        // sized ~7px past every screen edge and over the taskbar, hiding the
+        // min/max/close buttons. WM_GETMINMAXINFO pins it to the work area.
+        SourceInitialized += (_, _) => HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WndProc);
+        StateChanged += (_, _) => UpdateWindowStateVisuals();
+        UpdateWindowStateVisuals();
+
         // Fire-and-forget, silent unless it actually finds something newer —
         // never delay startup on a network call, and never let one fail loudly.
         _ = CheckForUpdatesOnStartupAsync();
@@ -69,6 +79,53 @@ public partial class MainWindow : Window
         }
         catch { /* best-effort only — never disrupt startup */ }
     }
+
+    private const string MaximizeGlyph = "M4 4 H20 V20 H4 Z";
+    private const string RestoreGlyph = "M8 8 H20 V20 H8 Z M4 16 V4 H16";
+
+    private void UpdateWindowStateVisuals()
+    {
+        var max = WindowState == WindowState.Maximized;
+        RootBorder.BorderThickness = new Thickness(max ? 0 : 1);
+        MaxGlyph.Data = Geometry.Parse(max ? RestoreGlyph : MaximizeGlyph);
+        MaxBtn.ToolTip = max ? "Restore down" : "Maximize";
+    }
+
+    private const int WM_GETMINMAXINFO = 0x0024;
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg != WM_GETMINMAXINFO) return IntPtr.Zero;
+        var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info)) return IntPtr.Zero;
+
+        var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+        RECT work = info.rcWork, mon = info.rcMonitor;
+        // Position is relative to the monitor; size is the work area (taskbar excluded).
+        mmi.ptMaxPosition.X = work.Left - mon.Left;
+        mmi.ptMaxPosition.Y = work.Top - mon.Top;
+        mmi.ptMaxSize.X = work.Right - work.Left;
+        mmi.ptMaxSize.Y = work.Bottom - work.Top;
+        // Keep MinWidth/MinHeight in device pixels too.
+        var dpi = VisualTreeHelper.GetDpi(this);
+        mmi.ptMinTrackSize.X = (int)(MinWidth * dpi.DpiScaleX);
+        mmi.ptMinTrackSize.Y = (int)(MinHeight * dpi.DpiScaleY);
+        Marshal.StructureToPtr(mmi, lParam, true);
+        handled = true;
+        return IntPtr.Zero;
+    }
+
+    [StructLayout(LayoutKind.Sequential)] private struct POINT { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] private struct RECT { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MINMAXINFO { public POINT ptReserved, ptMaxSize, ptMaxPosition, ptMinTrackSize, ptMaxTrackSize; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO { public int cbSize; public RECT rcMonitor, rcWork; public uint dwFlags; }
+
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
     private void MinBtn_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
