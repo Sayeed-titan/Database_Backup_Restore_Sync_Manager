@@ -10,6 +10,7 @@ namespace PgBackupManager.Core.Services;
 public sealed class RestoreOptions
 {
     public string Host { get; set; } = "";
+    public ConnectionProfile? Profile { get; set; }
     public int Port { get; set; } = 5432;
     public string Database { get; set; } = "";
     public string Username { get; set; } = "";
@@ -48,8 +49,8 @@ public sealed class PgRestoreRunner
     {
         var args = new List<string>
         {
-            $"--host={opts.Host}",
-            $"--port={opts.Port}",
+            $"--host={PgToolEndpoint.Resolve(opts.Profile, opts.Host, opts.Port).Host}",
+            $"--port={PgToolEndpoint.Resolve(opts.Profile, opts.Host, opts.Port).Port}",
             $"--username={opts.Username}",
             $"--dbname={opts.Database}",
             "--verbose",
@@ -105,7 +106,7 @@ public sealed class PgRestoreRunner
 
         args.Add(opts.BackupFile);
 
-        var env = new Dictionary<string, string> { ["PGPASSWORD"] = plaintextPassword };
+        var env = PgToolEndpoint.Env(opts.Profile, plaintextPassword);
         try
         {
             return await Process.RunAsync(pgRestoreExe, args, env, ct: ct);

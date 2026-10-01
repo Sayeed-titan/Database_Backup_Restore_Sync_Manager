@@ -15,6 +15,9 @@ public sealed class TransferPreset
 {
     public Guid SourceProfileId { get; set; }
     public Guid TargetProfileId { get; set; }
+    // null = the profile's own database
+    public string? SourceDatabase { get; set; }
+    public string? TargetDatabase { get; set; }
     public string SourceSchema { get; set; } = "";
     public string TargetSchema { get; set; } = "";
     // Empty = every table in the source schema at run time.
@@ -25,6 +28,8 @@ public sealed class TransferPreset
     public bool ApplyCode { get; set; }
     public string? RowFilter { get; set; }
     public long CommitEveryRows { get; set; }
+    public bool CopyIndexes { get; set; } = true;
+    public bool CopyForeignKeys { get; set; } = true;
 }
 
 public sealed class BackupPreset

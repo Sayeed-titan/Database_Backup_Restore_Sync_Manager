@@ -480,7 +480,18 @@ public partial class SqlEditorViewModel : ObservableObject, ISqlCompletionSource
             // different one: unknown profile -> no connection selected.
             if (r.ProfileId.HasValue)
             {
-                SelectedProfile = Profiles.FirstOrDefault(p => p.Id == r.ProfileId);
+                var found = Profiles.FirstOrDefault(p => p.Id == r.ProfileId);
+                // Script is for another database on that server: use a derived entry
+                // (same login) so it can never run against the profile's default database.
+                if (found != null && !string.IsNullOrEmpty(r.Database) && !string.Equals(found.Database, r.Database, StringComparison.OrdinalIgnoreCase))
+                {
+                    var derived = found.WithDatabase(r.Database);
+                    derived.Name = $"{found.Name} / {r.Database}";
+                    var existing = Profiles.FirstOrDefault(p => p.Id == derived.Id && p.Database == derived.Database);
+                    if (existing == null) { Profiles.Add(derived); existing = derived; }
+                    found = existing;
+                }
+                SelectedProfile = found;
                 if (SelectedProfile == null) Log($"\"{r.Title}\" was generated for a connection that isn't saved here — pick the target connection before running it.");
             }
             tab.IsDirty = false;

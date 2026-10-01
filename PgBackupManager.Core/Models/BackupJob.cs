@@ -10,6 +10,8 @@ public enum DumpContent { Both, SchemaOnly, DataOnly }
 public sealed class BackupJob
 {
     public string Host { get; set; } = "";
+    // Set by callers so tools use the SSH tunnel / SSL mode of the profile.
+    [System.Text.Json.Serialization.JsonIgnore] public ConnectionProfile? Profile { get; set; }
     public int Port { get; set; } = 5432;
     public string Database { get; set; } = "";
     public string Username { get; set; } = "";
