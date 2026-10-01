@@ -682,6 +682,7 @@ public partial class RestoreViewModel : ObservableObject
         var opts = new RestoreOptions
         {
             Host = SelectedProfile.Host,
+            Profile = SelectedProfile,
             Port = SelectedProfile.Port,
             Database = SelectedProfile.Database,
             Username = SelectedProfile.Username,
@@ -929,6 +930,7 @@ public partial class RestoreViewModel : ObservableObject
             var opts = new PsqlRestoreOptions
             {
                 Host = SelectedProfile.Host,
+                Profile = SelectedProfile,
                 Port = SelectedProfile.Port,
                 Database = SelectedProfile.Database,
                 Username = SelectedProfile.Username,
