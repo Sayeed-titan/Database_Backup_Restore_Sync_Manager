@@ -1,3 +1,4 @@
+using System;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
@@ -20,6 +21,10 @@ public partial class ProfileEditorWindow : Window
 
         TitleText.Text = isEdit ? "Edit Connection Profile" : "Add Connection Profile";
         PasswordInput.Password = SecretProtector.Unprotect(profile.EncryptedPasswordBase64);
+        SshPasswordInput.Password = _vm.SshPassword;
+        SshPassphraseInput.Password = _vm.SshKeyPassphrase;
+        // Header + actions + margins take ~230px; keep the dialog on-screen.
+        FormScroll.MaxHeight = Math.Max(300, SystemParameters.WorkArea.Height - 230);
     }
 
     private void HeaderBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -53,6 +58,9 @@ public partial class ProfileEditorWindow : Window
         p.Database = _vm.Database; p.Username = _vm.Username; p.DefaultSchema = _vm.DefaultSchema;
         p.ExtraOptions = _vm.ExtraOptions; p.SqlIntegratedSecurity = _vm.SqlIntegratedSecurity;
         p.OracleUseSid = _vm.OracleUseSid; p.Password = PasswordInput.Password;
+        p.SslMode = _vm.SslMode; p.SshEnabled = _vm.SshEnabled; p.SshHost = _vm.SshHost; p.SshPort = _vm.SshPort;
+        p.SshUser = _vm.SshUser; p.SshKeyFile = _vm.SshKeyFile;
+        p.SshPassword = SshPasswordInput.Password; p.SshKeyPassphrase = SshPassphraseInput.Password;
     }
 
     private void SaveBtn_Click(object sender, RoutedEventArgs e)
@@ -63,6 +71,13 @@ public partial class ProfileEditorWindow : Window
             return;
         }
         _vm.Password = PasswordInput.Password;
+        _vm.SshPassword = SshPasswordInput.Password;
+        _vm.SshKeyPassphrase = SshPassphraseInput.Password;
+        if (_vm.SshEnabled && (string.IsNullOrWhiteSpace(_vm.SshHost) || string.IsNullOrWhiteSpace(_vm.SshUser)))
+        {
+            MessageBox.Show(this, "SSH tunnel is on — SSH host and user are required.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         _vm.Apply();
         DialogResult = true;
         Close();

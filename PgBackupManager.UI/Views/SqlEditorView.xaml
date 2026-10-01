@@ -230,9 +230,9 @@
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" MinHeight="120" />
+                    <RowDefinition Height="3*" MinHeight="120" />
                     <RowDefinition Height="8" />
-                    <RowDefinition Height="280" MinHeight="90" />
+                    <RowDefinition Height="2*" MinHeight="150" />
                 </Grid.RowDefinitions>
 
                 <!-- query tabs -->
@@ -313,6 +313,16 @@
                                 </ToggleButton>
                                 <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="11" Foreground="{DynamicResource Secondary}" VerticalAlignment="Center" Margin="12,0" TextTrimming="CharacterEllipsis" />
                                 <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                    <StackPanel Orientation="Horizontal" Visibility="{Binding SelectedResult.IsEditing, FallbackValue=Collapsed, Converter={StaticResource BoolToVisible}}" Margin="0,0,10,0">
+                                        <Button Style="{StaticResource PillButton}" Command="{Binding SelectedResult.AddRowCommand}" Content="+ ROW" Padding="8,3" Margin="0,0,4,0" ToolTip="Add a new row (empty cells use the column default)" />
+                                        <Button Style="{StaticResource PillButton}" Click="DeleteRows_Click" Content="DELETE ROWS" Padding="8,3" Margin="0,0,4,0" ToolTip="Mark the selected rows for deletion" />
+                                        <Button Style="{StaticResource PillButton}" Command="{Binding SelectedResult.DiscardCommand}" Content="DISCARD" Padding="8,3" Margin="0,0,4,0" />
+                                        <Button Style="{StaticResource PrimaryButton}" Command="{Binding SelectedResult.SaveCommand}" Padding="10,3" FontSize="11" ToolTip="Write the changes back (one transaction, keyed on the primary key)">
+                                            <TextBlock Text="{Binding SelectedResult.PendingCount, StringFormat='SAVE ({0})'}" />
+                                        </Button>
+                                    </StackPanel>
+                                    <Button Style="{StaticResource PillButton}" Command="{Binding SelectedResult.ToggleEditCommand}" Content="{Binding SelectedResult.EditButtonText}" Padding="8,3" Margin="0,0,4,0"
+                                            Visibility="{Binding SelectedResult.CanEdit, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}" ToolTip="Edit this result in place (single-table SELECT with its primary key)" />
                                     <TextBlock Text="{Binding SelectedResult.Info}" FontSize="10.5" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="360" TextTrimming="CharacterEllipsis" />
                                     <Button Style="{StaticResource PillButton}" Padding="8,3" Margin="0,0,4,0" Content="EXPORT GRID"
                                             Command="{Binding DataContext.ExportGridCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" ToolTip="Save the rows shown to CSV/TSV" />
@@ -329,6 +339,7 @@
                             <DataGrid x:Name="ResultGrid" Style="{StaticResource DesignGrid}" ItemsSource="{Binding SelectedResult.PageView}" BorderThickness="0"
                                       AutoGeneratingColumn="ResultGrid_AutoGeneratingColumn" CanUserSortColumns="True"
                                       HeadersVisibility="All" RowHeaderWidth="NaN" LoadingRow="ResultGrid_LoadingRow"
+                                      IsReadOnly="{Binding SelectedResult.IsEditing, Converter={StaticResource InverseBool}, FallbackValue=True}"
                                       ToolTip="Column sorting orders the current page only — use ORDER BY to sort the whole result.">
                                 <DataGrid.RowHeaderStyle>
                                     <Style TargetType="DataGridRowHeader">

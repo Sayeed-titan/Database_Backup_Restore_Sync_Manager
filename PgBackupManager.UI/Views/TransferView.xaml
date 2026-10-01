@@ -64,6 +64,11 @@
                             <TextBlock Text="CONNECTION" Style="{StaticResource FieldLabel}" />
                             <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" Margin="0,0,0,10"
                                       ItemsSource="{Binding Profiles}" SelectedItem="{Binding SourceProfile}" DisplayMemberPath="DisplayWithEngine" />
+                            <StackPanel Visibility="{Binding HasSourceDatabases, Converter={StaticResource BoolToVisible}}" Margin="0,0,0,10">
+                                <TextBlock Text="DATABASE" Style="{StaticResource FieldLabel}" />
+                                <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                                          ItemsSource="{Binding SourceDatabases}" SelectedItem="{Binding SourceDatabase}" />
+                            </StackPanel>
                             <TextBlock Text="SCHEMA" Style="{StaticResource FieldLabel}" />
                             <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
                                       ItemsSource="{Binding SourceSchemas}" SelectedItem="{Binding SourceSchema}" />
@@ -79,6 +84,11 @@
                             <TextBlock Text="CONNECTION" Style="{StaticResource FieldLabel}" />
                             <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" Margin="0,0,0,10"
                                       ItemsSource="{Binding Profiles}" SelectedItem="{Binding TargetProfile}" DisplayMemberPath="DisplayWithEngine" />
+                            <StackPanel Visibility="{Binding HasTargetDatabases, Converter={StaticResource BoolToVisible}}" Margin="0,0,0,10">
+                                <TextBlock Text="DATABASE" Style="{StaticResource FieldLabel}" />
+                                <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}"
+                                          ItemsSource="{Binding TargetDatabases}" SelectedItem="{Binding TargetDatabase}" />
+                            </StackPanel>
                             <TextBlock Text="SCHEMA (created if missing)" Style="{StaticResource FieldLabel}" />
                             <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" IsEditable="True"
                                       ItemsSource="{Binding TargetSchemas}" Text="{Binding TargetSchema, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource FontMono}" />
@@ -219,7 +229,11 @@
                             <CheckBox Style="{StaticResource DesignCheck}" Content="Dry run (plan only — nothing changes)" IsChecked="{Binding DryRun}" Margin="0,0,0,10" />
                             <CheckBox Style="{StaticResource DesignCheck}" Content="Apply converted code to target" IsChecked="{Binding ApplyCode}" Margin="0,0,0,10"
                                       ToolTip="Off: code is only written to the transfer script for review (recommended first time)" />
-                            <CheckBox Style="{StaticResource DesignCheck}" Content="Continue with next table on error" IsChecked="{Binding ContinueOnError}" />
+                            <CheckBox Style="{StaticResource DesignCheck}" Content="Continue with next table on error" IsChecked="{Binding ContinueOnError}" Margin="0,0,0,10" />
+                            <CheckBox Style="{StaticResource DesignCheck}" Content="Copy secondary indexes" IsChecked="{Binding CopyIndexes}" Margin="0,0,0,10"
+                                      ToolTip="After the data is loaded, recreate the source's plain column indexes (new tables only)" />
+                            <CheckBox Style="{StaticResource DesignCheck}" Content="Copy foreign keys" IsChecked="{Binding CopyForeignKeys}"
+                                      ToolTip="After all tables are loaded, add the source's foreign keys (new tables only). SQLite: written into CREATE TABLE." />
                         </StackPanel>
                     </Grid>
                 </Border>
