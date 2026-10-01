@@ -17,6 +17,7 @@
             <conv:StatusBrushConverter x:Key="StatusBrush" />
             <conv:DbEngineBadgeConverter x:Key="DbEngineBadge" />
             <conv:NullToCollapsedConverter x:Key="NullToCollapsed" />
+            <conv:InverseBoolConverter x:Key="InverseBool" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

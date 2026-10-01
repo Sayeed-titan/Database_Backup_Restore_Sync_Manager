@@ -174,6 +174,7 @@ public partial class CopySchemaViewModel : ObservableObject
             var opts = new SchemaCopyOptions
             {
                 Host = SelectedProfile.Host,
+                Profile = SelectedProfile,
                 Port = SelectedProfile.Port,
                 Database = SelectedProfile.Database,
                 Username = SelectedProfile.Username,

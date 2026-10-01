@@ -19,7 +19,7 @@
         <shell:WindowChrome CaptionHeight="42" ResizeBorderThickness="6" CornerRadius="0" GlassFrameThickness="0" />
     </shell:WindowChrome.WindowChrome>
 
-    <Border BorderBrush="{DynamicResource TitleBar}" BorderThickness="1">
+    <Border x:Name="RootBorder" BorderBrush="{DynamicResource TitleBar}" BorderThickness="1">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="42" />
@@ -64,8 +64,9 @@
                     <Button x:Name="MinBtn" Click="MinBtn_Click" Style="{StaticResource TitleBarButton}" Width="44">
                         <Path Width="14" Height="14" Stretch="Uniform" Stroke="{DynamicResource TitleText}" StrokeThickness="1.6" Data="M5 12 L19 12" />
                     </Button>
-                    <Button x:Name="MaxBtn" Click="MaxBtn_Click" Style="{StaticResource TitleBarButton}" Width="44">
-                        <Border Width="13" Height="13" BorderBrush="{DynamicResource TitleText}" BorderThickness="1.6" CornerRadius="1.5" />
+                    <Button x:Name="MaxBtn" Click="MaxBtn_Click" Style="{StaticResource TitleBarButton}" Width="44" ToolTip="Maximize">
+                        <Path x:Name="MaxGlyph" Width="13" Height="13" Stretch="Uniform" Stroke="{DynamicResource TitleText}" StrokeThickness="1.6"
+                              StrokeLineJoin="Round" Data="M4 4 H20 V20 H4 Z" />
                     </Button>
                     <Button x:Name="CloseBtn" Click="CloseBtn_Click" Style="{StaticResource TitleCloseButton}" Width="44">
                         <Path x:Name="CloseGlyph" Width="14" Height="14" Stretch="Uniform" Stroke="{DynamicResource TitleText}" StrokeThickness="1.7"
@@ -83,6 +84,12 @@
                 </TabItem>
                 <TabItem Header="Transfer" Name="Transfer" Tag="M7 4 L3 8 L7 12 M3 8 H21 M17 12 L21 16 L17 20 M21 16 H3">
                     <views:TransferView />
+                </TabItem>
+                <TabItem Header="Schema Compare" Name="SchemaCompare" Tag="M4 4 H10 V20 H4 Z M14 4 H20 V20 H14 Z M10 8 H14 M10 16 H14">
+                    <views:SchemaCompareView />
+                </TabItem>
+                <TabItem Header="Data Compare" Name="DataCompare" Tag="M4 5 H20 M4 10 H20 M4 15 H11 M4 20 H11 M15 15 L20 20 M20 15 L15 20">
+                    <views:DataCompareView />
                 </TabItem>
                 <TabItem Header="Code Converter" Name="Converter" Tag="M4 20 L20 4 M15 4 H20 V9 M4 4 L9 9 M15 15 L20 20">
                     <views:ConverterView />
