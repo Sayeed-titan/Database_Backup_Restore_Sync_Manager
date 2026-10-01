@@ -1,8 +1,9 @@
 ; PgBackupManager installer script (Inno Setup 6)
 ;
 ; Build steps:
-;   1) dotnet publish PgBackupManager.UI\PgBackupManager.UI.csproj -c Release -p:PublishProfile=win-x64
-;   2) ISCC installer\PgBackupManager.iss
+;   Just run  .\release.ps1  (or release.cmd) from the repo root — it tests, bumps the
+;   version, publishes and runs ISCC into installer\dist\<version>\.
+;   Manual: dotnet publish ... -p:PublishProfile=win-x64, then ISCC installer\PgBackupManager.iss
 ;
 ; Produces a single self-contained setup.exe under installer\dist\ — the
 ; target machine needs nothing pre-installed (.NET is bundled). PostgreSQL
@@ -11,7 +12,11 @@
 ; after first launch. See before-install.txt, shown on the welcome page.
 
 #define MyAppName "PgBackupManager"
-#define MyAppVersion "3.0.0"
+; release.ps1 passes /DMyAppVersion=x.y.z (the csproj <Version> is the source of truth);
+; this default only applies when compiling the script by hand.
+#ifndef MyAppVersion
+  #define MyAppVersion "3.0.0"
+#endif
 #define MyAppPublisher "Mediklaud"
 #define MyAppExeName "PgBackupManager.UI.exe"
 #define PublishDir "..\PgBackupManager.UI\bin\Release\net8.0-windows\win-x64\publish"

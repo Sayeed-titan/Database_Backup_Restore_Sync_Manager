@@ -17,5 +17,10 @@
 
 ## Open
 - [ ] Live test against a real Oracle and MySQL server (no credentials/server here)
-- [ ] Build installer 3.0.0 (needs Inno Setup: `ISCC installer\PgBackupManager.iss`)
-- [ ] Cross-engine foreign keys / secondary indexes (see ROADMAP §4)
+- [x] Build installer 3.0.0 (`installer\dist\PgBackupManager-Setup-3.0.0.exe`; Inno Setup is at %LOCALAPPDATA%\Programs\Inno Setup 6)
+- [x] Cross-engine foreign keys / secondary indexes
+- [x] Converter: (+) joins, CONNECT BY, BULK COLLECT, FORALL, collections
+- [x] Result-grid editing (by primary key)
+- [x] Schema compare between any two connections
+- [x] Data compare (row diff + apply) between any two tables
+- [x] SSH tunnel / SSL options on connections (SSL verified live on MSSQL + PG; SSH untested — no sshd here)

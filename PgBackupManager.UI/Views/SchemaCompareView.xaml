@@ -31,9 +31,17 @@
                             <ColumnDefinition Width="10" />
                             <ColumnDefinition Width="2*" />
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <StackPanel>
                             <TextBlock Text="SOURCE" Style="{StaticResource FieldLabel}" />
                             <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SourceProfile}" DisplayMemberPath="DisplayWithEngine" />
+                        </StackPanel>
+                        <StackPanel x:Name="SourceDbBox" Grid.Row="1" Grid.ColumnSpan="5" Margin="0,8,0,0" Visibility="{Binding HasSourceDatabases, Converter={StaticResource BoolToVisible}}">
+                            <TextBlock Text="DATABASE" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" ItemsSource="{Binding SourceDatabases}" SelectedItem="{Binding SourceDatabase}" />
                         </StackPanel>
                         <StackPanel Grid.Column="2">
                             <TextBlock Text="SCHEMA" Style="{StaticResource FieldLabel}" />
@@ -51,9 +59,17 @@
                             <ColumnDefinition Width="10" />
                             <ColumnDefinition Width="2*" />
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <StackPanel>
                             <TextBlock Text="TARGET (the side the script changes)" Style="{StaticResource FieldLabel}" />
                             <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" ItemsSource="{Binding Profiles}" SelectedItem="{Binding TargetProfile}" DisplayMemberPath="DisplayWithEngine" />
+                        </StackPanel>
+                        <StackPanel x:Name="TargetDbBox" Grid.Row="1" Grid.ColumnSpan="5" Margin="0,8,0,0" Visibility="{Binding HasTargetDatabases, Converter={StaticResource BoolToVisible}}">
+                            <TextBlock Text="DATABASE" Style="{StaticResource FieldLabel}" />
+                            <ComboBox Style="{StaticResource InputCombo}" ItemContainerStyle="{StaticResource InputComboItem}" ItemsSource="{Binding TargetDatabases}" SelectedItem="{Binding TargetDatabase}" />
                         </StackPanel>
                         <StackPanel Grid.Column="2">
                             <TextBlock Text="SCHEMA" Style="{StaticResource FieldLabel}" />

@@ -74,6 +74,13 @@ backups work — it makes the process visible and hard to get wrong:
   and per-run log files.
 - **Dependencies** — one-click download of PostgreSQL client tools and
   Oracle Instant Client; detection of mysqldump / sqlcmd / LocalDB.
+- **Data Compare** — row-by-row diff of one table across any two
+  connections, then insert missing / update changed / delete extra rows on
+  the target in one transaction.
+- **SSL + SSH tunnels** — per-profile SSL/TLS mode (Disable / Prefer /
+  Require / VerifyCA / VerifyFull) and "Connect through an SSH tunnel"
+  (password or private key, host key pinned on first use). Backups,
+  restores and transfers use the same tunnel.
 - **Modern UI** — sidebar navigation, Light / Dark / System themes and 8
   accent colours, switched live.
 
@@ -150,7 +157,7 @@ Then go to the **Profiles** tab and add your first database connection.
 | User / Password | PostgreSQL: always used. SQL Server: only used when "Use Windows Authentication" is unchecked — otherwise it connects as the account running PgBackupManager. Password is encrypted with Windows DPAPI and can only be decrypted by your own Windows user account on this machine |
 | Default Schema | PostgreSQL only, optional and informational |
 
-Use **Test Connection** (also available inside the editor dialog, before saving) to confirm it connects before relying on it. **Extra connection options** appends raw `key=value;` pairs (SSL mode, timeouts...) to the generated connection string. **EDIT**
+Use **Test Connection** (also available inside the editor dialog, before saving) to confirm it connects before relying on it. **Extra connection options** appends raw `key=value;` pairs (SSL mode, timeouts...) to the generated connection string. **SSL / SSH tunnel options** (tick the box under the form) sets the SSL/TLS mode and, if needed, an SSH jump host — the database Host/Port are then as seen *from the SSH server*; the SSH host key is pinned on first connect (`%APPDATA%\PgBackupManager\ssh_known_hosts.json`) and a changed key is refused. **EDIT**
 and **DELETE** work on whichever profile is selected in the list. The
 Profiles list shows an engine badge (**PG** / **MSSQL** / **ORACLE** / **MYSQL** / **SQLITE**) next to each name so a mixed
 list stays easy to scan.
@@ -348,7 +355,17 @@ the plan, **Ctrl+Space** completes keywords / tables / columns. Turn
 *Script source*, *Export data*, *Import CSV*, *Convert* and *Transfer*.
 **Run File…** executes a large script without opening it.
 
-### 10. Code Converter
+Big results are paged (choose rows per page; **Next** / **Load More** fetch further rows from the server, **Count All** gives the exact total). To **edit data**, run a `SELECT` from one table that includes its primary key and click **EDIT**: change cells, **+ ROW**, **DELETE ROWS**, then **SAVE** — everything is written in one transaction keyed on the original primary key (type `NULL` for null; empty cells of new rows use the column default).
+
+### 10. Schema Compare
+
+Pick a **source** and a **target** (any engines) and **Compare**. Differences are listed as *only in source*, *only in target* or *different* (tables, columns, primary keys, indexes, foreign keys, views/routines/sequences). **Generate Sync Script** writes the DDL that makes the target match the source — for the selected rows, or everything shown — and opens it in the SQL Editor. Drops are commented out; nothing runs until you run it.
+
+### 10a. Data Compare
+
+Pick a **table** on each side (any engines) and **Compare**. Rows are matched on the primary key (or the **key columns** you type under *Options*) and values are compared after converting both sides to the target column's type, so `1.50` vs `1.5`, `true` vs `1` or blank-padded `CHAR`s don't show up as differences. Click a row to see its columns side by side. Tick **Insert** / **Update** / **Delete extra** and **Apply to Target…** — it asks first, then writes everything in one transaction (rolled back on any error) and re-compares. **Generate Script** produces the same changes as SQL in the target's dialect (typed literals, `IDENTITY_INSERT` on SQL Server, sequence resync on PostgreSQL) and opens it in the SQL Editor on the target connection for review. *Ignore columns* skips e.g. `updated_at`; row filters (SQL `WHERE`) compare a slice of a big table. Up to 2 million rows per side are held in memory.
+
+### 10b. Code Converter
 
 Choose **From** / **To**, paste code (or *Load objects from a database*) and
 **Convert**. Oracle packages become one PostgreSQL schema per package, so
@@ -444,6 +461,24 @@ under a different **Restore as database name**.
 ---
 
 ## For developers
+
+### Releasing (one command)
+
+From the repo root: `release.cmd` (or `.\release.ps1`). It runs the tests, bumps the
+version, publishes the single-file exe and builds the installer into
+`installer\dist\<version>\` (installer + `SHA256.txt` + `release-notes.md`), refreshes
+`installer\dist\latest\` and prepends the entry to `CHANGELOG.md`.
+
+| Command | Result |
+|---|---|
+| `release.cmd` | patch release, e.g. 3.0.0 → 3.0.1 |
+| `release.cmd -Bump minor -Notes "what changed"` | 3.0.1 → 3.1.0 |
+| `release.cmd -Bump major` | 3.1.0 → 4.0.0 |
+| `release.cmd -Version 3.2.5` | exact version |
+| `release.cmd -NoBump` | rebuild the current version |
+
+The version's single source of truth is `<Version>` in `PgBackupManager.UI.csproj`.
+Nothing is committed automatically.
 
 ```
 PgBackupManager.Core/   No-UI engine — pg_dump/pg_restore process runners,
