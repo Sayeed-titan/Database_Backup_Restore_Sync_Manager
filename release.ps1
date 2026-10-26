@@ -71,7 +71,7 @@ if ((Test-Path $outDir) -and ($new -ne $cur.ToString()) -and -not $Version) { Fa
 if (-not $SkipTests) {
     Step 'Unit tests'
     dotnet test PgBackupManager.Tests -c Release --nologo -v q
-    if ($LASTEXITCODE -ne 0) { Fail 'Tests failed — nothing was changed or built.' }
+    if ($LASTEXITCODE -ne 0) { Fail 'Tests failed - nothing was changed or built.' }
 }
 
 # --- bump (only after tests pass) -----------------------------------------
@@ -119,7 +119,8 @@ $(if ($Notes) { "## Notes`n`n$Notes" } else { '' })
 
 # CHANGELOG.md (newest first)
 $cl = Join-Path $PSScriptRoot 'CHANGELOG.md'
-$entry = "## $new — $(Get-Date -Format 'yyyy-MM-dd')`n`n" + $(if ($Notes) { "$Notes`n`n" } else { "(no notes)`n`n" })
+$noteBlock = if ($Notes) { "$Notes`n`n" } else { "(no notes)`n`n" }
+$entry = "## $new - $(Get-Date -Format 'yyyy-MM-dd')`n`n$noteBlock"
 if (Test-Path $cl) {
     $old = [IO.File]::ReadAllText($cl) -replace '^# Changelog\s*', ''
     [IO.File]::WriteAllText($cl, "# Changelog`n`n$entry$old")
@@ -135,4 +136,4 @@ Copy-Item $outDir $latest -Recurse
 Write-Host "`nDONE  $new" -ForegroundColor Green
 Write-Host "  $setup"
 Write-Host "  SHA256 $hash"
-Write-Host "  (git: nothing committed — commit the version bump + CHANGELOG when you're happy)"
+Write-Host "  (git: nothing committed - commit the version bump + CHANGELOG when you're happy)"
